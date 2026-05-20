@@ -1,0 +1,103 @@
+package api
+
+import (
+	"context"
+	"net/http"
+	"time"
+
+	"github.com/gin-gonic/gin"
+
+	"traxr-backend/internal/models"
+	"traxr-backend/internal/services"
+)
+
+var simulationSequence = []string{
+	string(models.StatusPlaced),
+	string(models.StatusPickedUp),
+	string(models.StatusInTransit),
+	string(models.StatusOutForDelivery),
+	string(models.StatusDelivered),
+}
+
+func (h *Handler) UpdateTracking(c *gin.Context) {
+	orderID := c.Param("orderId")
+	var req models.TrackingUpdate
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	order, err := h.updateOrderAndEvent(c.Request.Context(), orderID, req.Status, req.Location, req.Lat, req.Lng, req.Note)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update tracking"})
+		return
+	}
+
+	c.JSON(http.StatusOK, order)
+}
+
+func (h *Handler) AdminSimulate(c *gin.Context) {
+	orderID := c.Param("orderId")
+	order, err := h.fetchOrderWithEvents(c.Request.Context(), "SELECT id, tracking_id, user_id, customer_name, customer_phone, origin, destination, origin_lat, origin_lng, dest_lat, dest_lng, current_lat, current_lng, status, weight_kg, est_delivery, COALESCE(ai_prediction, ''), created_at, updated_at FROM orders WHERE id = $1", orderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
+		return
+	}
+
+	currentIndex := 0
+	for i, status := range simulationSequence {
+		if status == string(order.Status) {
+			currentIndex = i
+			break
+		}
+	}
+	nextIndex := currentIndex + 1
+	if nextIndex >= len(simulationSequence) {
+		nextIndex = len(simulationSequence) - 1
+	}
+	nextStatus := simulationSequence[nextIndex]
+	lat, lng := services.Interpolate(order.Order, 0.2)
+	if nextStatus == string(models.StatusDelivered) {
+		lat = order.DestLat
+		lng = order.DestLng
+	}
+
+	location := services.SimulationLocation(nextStatus, order.Destination)
+	updated, err := h.updateOrderAndEvent(c.Request.Context(), orderID, nextStatus, location, lat, lng, "Simulated status advancement")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to simulate order"})
+		return
+	}
+
+	c.JSON(http.StatusOK, updated)
+}
+
+func (h *Handler) updateOrderAndEvent(ctx context.Context, orderID, status, location string, lat, lng float64, note string) (*models.OrderWithEvents, error) {
+	_, err := h.DB.Exec(ctx, `
+		UPDATE orders
+		SET status = $2, current_lat = $3, current_lng = $4, updated_at = NOW()
+		WHERE id = $1`, orderID, status, lat, lng)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := h.insertEvent(ctx, orderID, status, location, lat, lng, note); err != nil {
+		return nil, err
+	}
+
+	order, err := h.fetchOrderWithEvents(ctx, "SELECT id, tracking_id, user_id, customer_name, customer_phone, origin, destination, origin_lat, origin_lng, dest_lat, dest_lng, current_lat, current_lng, status, weight_kg, est_delivery, COALESCE(ai_prediction, ''), created_at, updated_at FROM orders WHERE id = $1", orderID)
+	if err != nil {
+		return nil, err
+	}
+
+	if status == string(models.StatusDelayed) || status == string(models.StatusOutForDelivery) {
+		prediction := h.AI.PredictDelay(ctx, order.Order, location)
+		if _, err := h.DB.Exec(ctx, "UPDATE orders SET ai_prediction = $2, updated_at = NOW() WHERE id = $1", orderID, prediction); err == nil {
+			order.AIPrediction = prediction
+			order.UpdatedAt = time.Now()
+		}
+	}
+
+	h.publishOrder(ctx, orderID, order)
+	return order, nil
+}

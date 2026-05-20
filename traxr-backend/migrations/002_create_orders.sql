@@ -1,0 +1,21 @@
+CREATE TABLE orders (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tracking_id     TEXT UNIQUE NOT NULL,
+  user_id         UUID REFERENCES users(id) ON DELETE CASCADE,
+  customer_name   TEXT NOT NULL,
+  customer_phone  TEXT,
+  origin          TEXT NOT NULL,
+  destination     TEXT NOT NULL,
+  origin_lat      FLOAT NOT NULL,
+  origin_lng      FLOAT NOT NULL,
+  dest_lat        FLOAT NOT NULL,
+  dest_lng        FLOAT NOT NULL,
+  current_lat     FLOAT NOT NULL,
+  current_lng     FLOAT NOT NULL,
+  status          TEXT NOT NULL DEFAULT 'placed',
+  weight_kg       FLOAT,
+  est_delivery    TIMESTAMPTZ,
+  ai_prediction   TEXT,
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
