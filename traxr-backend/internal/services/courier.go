@@ -76,7 +76,7 @@ type TrackingMoreResponse struct {
 		Code    int    `json:"code"`
 		Message string `json:"message"`
 	} `json:"meta"`
-	Data struct {
+	Data []struct {
 		TrackInfo TrackingMoreTrackInfo `json:"track_info"`
 	} `json:"data"`
 }
@@ -170,7 +170,14 @@ func fetchTrackingDetails(trackingNumber, apiKey string) (*TrackingMoreResponse,
 		return nil, fmt.Errorf("parse response: %w", err)
 	}
 
-	log.Printf("trackingmore fetch tracking=%s meta_code=%d meta_message=%s courier=%s status=%s", trackingNumber, tmResp.Meta.Code, tmResp.Meta.Message, tmResp.Data.TrackInfo.CourierCode, tmResp.Data.TrackInfo.Status)
+	courier := ""
+	status := ""
+	if len(tmResp.Data) > 0 {
+		courier = tmResp.Data[0].TrackInfo.CourierCode
+		status = tmResp.Data[0].TrackInfo.Status
+	}
+
+	log.Printf("trackingmore fetch tracking=%s meta_code=%d meta_message=%s courier=%s status=%s data_len=%d", trackingNumber, tmResp.Meta.Code, tmResp.Meta.Message, courier, status, len(tmResp.Data))
 
 	if tmResp.Meta.Code != 200 && tmResp.Meta.Code != 4000 {
 		return nil, fmt.Errorf("trackingmore error %d: %s", tmResp.Meta.Code, tmResp.Meta.Message)
@@ -180,9 +187,14 @@ func fetchTrackingDetails(trackingNumber, apiKey string) (*TrackingMoreResponse,
 }
 
 func buildRealTrackingResult(tmResp *TrackingMoreResponse, trackingNumber string) (*RealTrackingResult, error) {
-	allEvents := tmResp.Data.TrackInfo.OriginInfo.Trackinfo
+	if len(tmResp.Data) == 0 {
+		return nil, fmt.Errorf("no track_info returned for %s", trackingNumber)
+	}
+
+	trackInfo := tmResp.Data[0].TrackInfo
+	allEvents := trackInfo.OriginInfo.Trackinfo
 	if len(allEvents) == 0 {
-		allEvents = tmResp.Data.TrackInfo.DestinationInfo.Trackinfo
+		allEvents = trackInfo.DestinationInfo.Trackinfo
 	}
 
 	log.Printf("trackingmore build tracking=%s events=%d", trackingNumber, len(allEvents))
@@ -222,7 +234,7 @@ func buildRealTrackingResult(tmResp *TrackingMoreResponse, trackingNumber string
 		events[i], events[j] = events[j], events[i]
 	}
 
-	latestStatus := tmStatusToOrderStatus(tmResp.Data.TrackInfo.Status)
+	latestStatus := tmStatusToOrderStatus(trackInfo.Status)
 	originEvent := allEvents[len(allEvents)-1]
 	latestEvent := allEvents[0]
 
@@ -242,7 +254,7 @@ func buildRealTrackingResult(tmResp *TrackingMoreResponse, trackingNumber string
 	return &RealTrackingResult{
 		Events:      events,
 		Status:      latestStatus,
-		CourierName: tmResp.Data.TrackInfo.CourierCode,
+		CourierName: trackInfo.CourierCode,
 		Origin:      originLoc,
 		Destination: destLoc,
 		OriginLat:   oLat,
