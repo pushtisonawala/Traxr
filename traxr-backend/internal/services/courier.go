@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -202,16 +201,11 @@ func createTracking(trackingNumber, courierCode, apiKey string) (*TrackingMoreRe
 	}
 
 	log.Printf("trackingmore create tracking=%s courier=%s http_status=%d meta_code=%d meta_message=%s", trackingNumber, courierCode, resp.StatusCode, tmResp.Meta.Code, tmResp.Meta.Message)
-
 	return &tmResp, nil
 }
 
 func getExistingTracking(trackingNumber, courierCode, apiKey string) (*TrackingMoreResponse, error) {
-	urlStr := fmt.Sprintf(
-		"https://api.trackingmore.com/v4/trackings/get?tracking_number=%s&courier_code=%s",
-		url.QueryEscape(trackingNumber),
-		url.QueryEscape(courierCode),
-	)
+	urlStr := fmt.Sprintf("https://api.trackingmore.com/v4/trackings/%s/%s", courierCode, trackingNumber)
 	req, err := http.NewRequest(http.MethodGet, urlStr, nil)
 	if err != nil {
 		return nil, err
@@ -328,17 +322,19 @@ func FetchRealTracking(trackingNumber, courierHint, apiKey string) (*RealTrackin
 		candidateCourierCodes = append(candidateCourierCodes, code)
 	}
 
-	addCode(courierHint)
-
-	detectedCodes, err := DetectCouriers(trackingNumber, apiKey)
-	if err == nil {
-		for _, code := range detectedCodes {
-			addCode(code)
+	if courierHint != "" {
+		addCode(courierHint)
+	} else {
+		detectedCodes, err := DetectCouriers(trackingNumber, apiKey)
+		if err == nil {
+			for _, code := range detectedCodes {
+				addCode(code)
+			}
 		}
 	}
 
-	for _, fallback := range []string{"delhivery", "shiprocket", "xpressbees", "dtdc", "bluedart", "fedex", "dhl"} {
-		addCode(fallback)
+	if len(candidateCourierCodes) == 0 {
+		return nil, fmt.Errorf("no courier could be detected for %s", trackingNumber)
 	}
 
 	var lastErr error
