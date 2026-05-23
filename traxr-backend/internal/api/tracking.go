@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"fmt"
+	"math/rand"
 	"net/http"
 	"time"
 
@@ -62,14 +64,36 @@ func (h *Handler) AdminSimulate(c *gin.Context) {
 		lng = order.DestLng
 	}
 
-	location := services.SimulationLocation(nextStatus, order.Destination)
-	updated, err := h.updateOrderAndEvent(c.Request.Context(), orderID, nextStatus, location, lat, lng, "Simulated status advancement")
+	location := map[string]string{
+		string(models.StatusPickedUp):       fmt.Sprintf("%s pickup facility", order.Origin),
+		string(models.StatusInTransit):      "NH corridor checkpoint",
+		string(models.StatusOutForDelivery): fmt.Sprintf("%s delivery hub", order.Destination),
+		string(models.StatusDelivered):      fmt.Sprintf("%s - delivered", order.Destination),
+	}[nextStatus]
+	if location == "" {
+		location = services.SimulationLocation(nextStatus, order.Destination)
+	}
+	note := map[string]string{
+		string(models.StatusPickedUp):       fmt.Sprintf("Package picked up from %s warehouse", order.Origin),
+		string(models.StatusInTransit):      "Package in transit via highway corridor",
+		string(models.StatusOutForDelivery): fmt.Sprintf("Out for delivery with agent #%d", 100+rand.Intn(900)),
+		string(models.StatusDelivered):      "Package delivered and signed by recipient",
+	}[nextStatus]
+	updated, err := h.updateOrderAndEvent(c.Request.Context(), orderID, nextStatus, location, lat, lng, note)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to simulate order"})
 		return
 	}
 
-	c.JSON(http.StatusOK, updated)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"new_status": nextStatus,
+			"location":   location,
+			"note":       note,
+			"order":      orderPayload(updated),
+		},
+	})
 }
 
 func (h *Handler) updateOrderAndEvent(ctx context.Context, orderID, status, location string, lat, lng float64, note string) (*models.OrderWithEvents, error) {

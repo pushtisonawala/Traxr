@@ -16,6 +16,8 @@ export interface Order {
   weight_kg: number
   est_delivery: string
   ai_prediction: string
+  is_real?: boolean
+  courier?: string
   created_at: string
   updated_at: string
 }

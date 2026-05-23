@@ -42,6 +42,7 @@ func SetupRouter(handler *Handler) *gin.Engine {
 	router.POST("/auth/register", handler.Register)
 	router.POST("/auth/login", handler.Login)
 	router.GET("/track/:trackingId", handler.GetPublicTracking)
+	router.GET("/track/real/:trackingNumber", handler.TrackReal)
 	router.GET("/ws", handler.HandleWS)
 	router.GET("/admin/orders", handler.AdminOrders)
 	router.POST("/admin/seed", handler.ResetAndSeed)

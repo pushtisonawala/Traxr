@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import api from "@/lib/api"
 import { useTraxrStore } from "@/lib/store"
@@ -8,31 +8,39 @@ import { wsClient } from "@/lib/websocket"
 import { OrderWithEvents } from "@/types"
 import { LiveBadge } from "@/components/LiveBadge"
 import { StatusTimeline } from "@/components/StatusTimeline"
-import { AIPredictionCard } from "@/components/AIPredictionCard"
+import AIPredictionCard from "@/components/AIPredictionCard"
 import { TrackingMap } from "@/components/TrackingMap"
+import ETAProgress from "@/components/ETAProgress"
+
+type TrackPageResponse = OrderWithEvents | { success: boolean; data: OrderWithEvents }
 
 export default function TrackPage({ params }: { params: { orderId: string } }) {
-  const { currentOrder, trackingEvents, setOrder, addTrackingEvent, isConnected, setConnected } = useTraxrStore()
+  const { currentOrder, trackingEvents, setOrder, isConnected, setConnected } = useTraxrStore()
   const [error, setError] = useState("")
   const [wsError, setWsError] = useState(false)
+
+  const normalizedOrderId = useMemo(() => params.orderId, [params.orderId])
+  const isRealTracking = !normalizedOrderId.startsWith("TRX-")
 
   useEffect(() => {
     let mounted = true
 
     async function loadOrder() {
       try {
-        const response = await api.get<OrderWithEvents>(`/track/${params.orderId}`)
+        const apiEndpoint = isRealTracking ? `/track/real/${normalizedOrderId}` : `/track/${normalizedOrderId}`
+        const response = await api.get<TrackPageResponse>(apiEndpoint)
+        const order = "data" in response.data ? response.data.data : response.data
         if (!mounted) return
-        setOrder(response.data, response.data.tracking_events)
-        wsClient.connect(response.data.id, (message) => {
-          if (message.type === "status_update") {
-            const payload = message.payload as OrderWithEvents
-            setOrder(payload, payload.tracking_events)
-            if (payload.tracking_events?.[0]) {
-              addTrackingEvent(payload.tracking_events[0])
+        setOrder(order, order.tracking_events)
+
+        if (!order.is_real) {
+          wsClient.connect(order.id, (message) => {
+            if (message.type === "status_update") {
+              const payload = message.payload as OrderWithEvents
+              setOrder(payload, payload.tracking_events)
             }
-          }
-        })
+          })
+        }
       } catch (err: any) {
         setError(err.response?.data?.error || "Shipment not found.")
       }
@@ -53,7 +61,7 @@ export default function TrackPage({ params }: { params: { orderId: string } }) {
       window.removeEventListener("traxr-ws-status", handler)
       setConnected(false)
     }
-  }, [params.orderId, setOrder, addTrackingEvent, setConnected])
+  }, [isRealTracking, normalizedOrderId, setOrder, setConnected])
 
   if (error) {
     return (
@@ -75,8 +83,15 @@ export default function TrackPage({ params }: { params: { orderId: string } }) {
       <div className="mx-auto max-w-7xl">
         <div className="mb-6 flex flex-col items-start justify-between gap-4 rounded-3xl border border-white/10 bg-white/5 px-6 py-4 md:flex-row md:items-center">
           <Link href="/" className="font-mono text-2xl font-bold">Traxr</Link>
-          <p className="font-mono text-sm text-slate-300">{currentOrder.tracking_id}</p>
-          <LiveBadge connected={isConnected} error={wsError} />
+          <div className="text-center">
+            <p className="font-mono text-sm text-slate-300">{currentOrder.tracking_id}</p>
+            {currentOrder.is_real && (
+              <div style={{ fontSize: "11px", color: "#64748b", textAlign: "center", marginTop: "2px" }}>
+                Live data via Trackingmore · {currentOrder.courier}
+              </div>
+            )}
+          </div>
+          <LiveBadge connected={currentOrder.is_real ? true : isConnected} error={currentOrder.is_real ? false : wsError} />
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[40%_60%]">
@@ -88,7 +103,7 @@ export default function TrackPage({ params }: { params: { orderId: string } }) {
               <div className="mt-5 grid grid-cols-2 gap-3 text-sm text-slate-400">
                 <div>
                   <p>Weight</p>
-                  <p className="mt-1 text-white">{currentOrder.weight_kg} kg</p>
+                  <p className="mt-1 text-white">{currentOrder.weight_kg.toFixed(2)} kg</p>
                 </div>
                 <div>
                   <p>Created</p>
@@ -96,8 +111,9 @@ export default function TrackPage({ params }: { params: { orderId: string } }) {
                 </div>
               </div>
             </div>
+            <ETAProgress order={currentOrder} />
+            <AIPredictionCard prediction={currentOrder.ai_prediction} />
             <StatusTimeline events={trackingEvents} />
-            <AIPredictionCard prediction={currentOrder.ai_prediction} updatedAt={currentOrder.updated_at} />
           </div>
 
           <TrackingMap

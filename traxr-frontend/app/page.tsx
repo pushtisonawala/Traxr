@@ -33,13 +33,24 @@ export default function LandingPage() {
           <input
             value={trackingID}
             onChange={(event) => setTrackingID(event.target.value.toUpperCase())}
-            placeholder="Enter tracking ID e.g. TRX-20240519-K2P8X"
+            placeholder="Enter any tracking ID - Bluedart, Delhivery, DTDC and more"
             className="flex-1 rounded-2xl border border-white/10 bg-slate-950/50 px-5 py-4 font-mono text-sm outline-none placeholder:text-slate-500"
           />
           <button type="submit" className="rounded-2xl bg-sky-500 px-6 py-4 font-medium text-slate-950 transition hover:bg-sky-400">
             Track shipment
           </button>
         </form>
+
+        <p style={{ fontSize: "13px", color: "#64748b", marginTop: "8px", textAlign: "center" }}>
+          Works with 900+ couriers worldwide - or try demo ID: TRX-20260523-DEMO1
+        </p>
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+          {["Bluedart", "Delhivery", "DTDC", "Ecom Express", "FedEx", "DHL", "1200+ more"].map((courier) => (
+            <span key={courier} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-400">
+              {courier}
+            </span>
+          ))}
+        </div>
 
         <div className="mt-12 grid w-full max-w-6xl gap-6 md:grid-cols-3">
           {[

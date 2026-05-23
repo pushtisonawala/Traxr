@@ -149,6 +149,55 @@ func (h *Handler) GetPublicTracking(c *gin.Context) {
 	c.JSON(http.StatusOK, order)
 }
 
+func (h *Handler) TrackReal(c *gin.Context) {
+	trackingNumber := c.Param("trackingNumber")
+	if trackingNumber == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "tracking number required"})
+		return
+	}
+
+	result, err := services.FetchRealTracking(trackingNumber, h.Config.TrackingMoreAPIKey)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"error":   "Tracking info not found. Supported couriers: Bluedart, Delhivery, DTDC, Ecom Express, XpressBees, FedEx, DHL",
+		})
+		return
+	}
+
+	aiPrediction, _ := services.GenerateDelayPrediction(
+		result.Origin, result.Destination,
+		string(result.Status), result.Events[0].Location,
+		h.Config.GeminiAPIKey,
+	)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"tracking_id":     trackingNumber,
+			"customer_name":   "Live shipment",
+			"customer_phone":  "",
+			"origin":          result.Origin,
+			"destination":     result.Destination,
+			"origin_lat":      result.OriginLat,
+			"origin_lng":      result.OriginLng,
+			"dest_lat":        result.DestLat,
+			"dest_lng":        result.DestLng,
+			"current_lat":     result.CurrentLat,
+			"current_lng":     result.CurrentLng,
+			"status":          result.Status,
+			"weight_kg":       0.0,
+			"ai_prediction":   aiPrediction,
+			"tracking_events": result.Events,
+			"is_real":         true,
+			"courier":         result.CourierName,
+			"est_delivery":    time.Now().Add(24 * time.Hour),
+			"created_at":      time.Now(),
+			"updated_at":      time.Now(),
+		},
+	})
+}
+
 func (h *Handler) AdminOrders(c *gin.Context) {
 	rows, err := h.DB.Query(c.Request.Context(), `
 		SELECT id, tracking_id, user_id, customer_name, customer_phone, origin, destination,

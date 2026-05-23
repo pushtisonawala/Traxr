@@ -31,6 +31,8 @@ type Order struct {
 	WeightKg      float64     `json:"weight_kg"`
 	EstDelivery   time.Time   `json:"est_delivery"`
 	AIPrediction  string      `json:"ai_prediction"`
+	IsReal        bool        `json:"is_real"`
+	Courier       string      `json:"courier"`
 	CreatedAt     time.Time   `json:"created_at"`
 	UpdatedAt     time.Time   `json:"updated_at"`
 }

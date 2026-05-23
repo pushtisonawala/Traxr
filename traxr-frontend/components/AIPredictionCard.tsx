@@ -1,31 +1,54 @@
-import { BrainCircuit } from "lucide-react"
-
-type Props = {
-  prediction: string
-  updatedAt: string
-}
-
-export function AIPredictionCard({ prediction, updatedAt }: Props) {
+export default function AIPredictionCard({ prediction }: { prediction: string | null }) {
   return (
-    <div className="rounded-2xl bg-gradient-to-r from-sky-500/60 via-indigo-500/50 to-fuchsia-500/60 p-[1px]">
-      <div className="rounded-2xl bg-slate-950/90 p-5">
-        <div className="mb-4 flex items-center gap-3">
-          <div className="rounded-xl bg-sky-500/15 p-2 text-sky-300">
-            <BrainCircuit size={20} />
-          </div>
-          <div>
-            <p className="text-sm uppercase tracking-[0.24em] text-slate-400">AI Prediction</p>
-            <p className="text-xs text-slate-500">Updated {new Date(updatedAt).toLocaleString()}</p>
-          </div>
+    <div style={{
+      background: "rgba(99,102,241,0.08)",
+      border: "1px solid rgba(99,102,241,0.25)",
+      borderRadius: "12px",
+      padding: "16px 20px",
+      marginBottom: "16px",
+      position: "relative",
+      overflow: "hidden"
+    }}>
+      <div style={{
+        position: "absolute", top: 0, left: 0, right: 0, height: "2px",
+        background: "linear-gradient(90deg,#6366f1,#8b5cf6,#06b6d4)"
+      }} />
+
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+        <span style={{ fontSize: "16px" }}>✦</span>
+        <span style={{ fontSize: "13px", fontWeight: 500, color: "#a5b4fc" }}>AI Prediction</span>
+        <span style={{
+          marginLeft: "auto", fontSize: "10px",
+          background: "rgba(99,102,241,0.2)",
+          color: "#818cf8", padding: "2px 8px", borderRadius: "20px"
+        }}>Gemini</span>
+      </div>
+
+      {prediction ? (
+        <p style={{
+          fontSize: "14px", lineHeight: 1.6,
+          color: "#e2e8f0", margin: 0
+        }}>
+          {prediction}
+        </p>
+      ) : (
+        <div>
+          {[100, 85, 60].map((w, i) => (
+            <div key={i} style={{
+              height: "14px", marginBottom: "8px",
+              width: `${w}%`,
+              background: "linear-gradient(90deg,rgba(255,255,255,0.05) 25%,rgba(255,255,255,0.1) 50%,rgba(255,255,255,0.05) 75%)",
+              backgroundSize: "200% 100%",
+              borderRadius: "4px",
+              animation: "shimmer 1.5s infinite"
+            }} />
+          ))}
+          <style>{`@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
         </div>
-        {prediction ? (
-          <p className="text-sm leading-7 text-slate-100">{prediction}</p>
-        ) : (
-          <div className="space-y-2">
-            <p className="text-sm text-slate-300">Generating prediction...</p>
-            <div className="h-2 rounded-full bg-[length:200%_100%] bg-gradient-to-r from-slate-800 via-slate-600 to-slate-800 animate-shimmer" />
-          </div>
-        )}
+      )}
+
+      <div style={{ marginTop: "10px", fontSize: "11px", color: "#475569" }}>
+        Powered by Google Gemini - updates with each status change
       </div>
     </div>
   )

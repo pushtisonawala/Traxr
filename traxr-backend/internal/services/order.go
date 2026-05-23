@@ -41,3 +41,7 @@ func randomTrackingID() (string, error) {
 
 	return fmt.Sprintf("TRX-%s-%s", time.Now().Format("20060102"), string(suffix)), nil
 }
+
+func GenerateTrackingIDNoCheck() (string, error) {
+	return randomTrackingID()
+}

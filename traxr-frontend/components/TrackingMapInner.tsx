@@ -4,11 +4,29 @@ import { useEffect } from "react"
 import L from "leaflet"
 import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from "react-leaflet"
 
-const pulseIcon = new L.DivIcon({
+const pulsingIcon = L.divIcon({
   className: "",
-  html: `<div class="map-pulse-marker"></div>`,
-  iconSize: [18, 18],
-  iconAnchor: [9, 9]
+  html: `
+    <div style="position:relative;width:20px;height:20px;">
+      <div style="
+        position:absolute;width:20px;height:20px;border-radius:50%;
+        background:rgba(59,130,246,0.3);
+        animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite;
+      "></div>
+      <div style="
+        position:absolute;top:4px;left:4px;width:12px;height:12px;
+        border-radius:50%;background:#3b82f6;border:2px solid white;
+      "></div>
+    </div>
+    <style>
+      @keyframes ping {
+        0%{transform:scale(1);opacity:0.8}
+        100%{transform:scale(2.5);opacity:0}
+      }
+    </style>
+  `,
+  iconSize: [20, 20],
+  iconAnchor: [10, 10]
 })
 
 const staticMarker = (color: string) =>
@@ -25,12 +43,17 @@ type Props = {
   current: { lat: number; lng: number }
 }
 
-function Recenter({ lat, lng }: { lat: number; lng: number }) {
+function FitMapBounds({ origin, destination, current }: Props) {
   const map = useMap()
 
   useEffect(() => {
-    map.panTo([lat, lng], { animate: true, duration: 1.2 })
-  }, [lat, lng, map])
+    const bounds = L.latLngBounds([
+      [origin.lat, origin.lng],
+      [destination.lat, destination.lng],
+      [current.lat, current.lng]
+    ])
+    map.fitBounds(bounds, { padding: [80, 80] })
+  }, [origin, destination, current, map])
 
   return null
 }
@@ -40,7 +63,7 @@ export default function TrackingMapInner({ origin, destination, current }: Props
     <div className="min-h-[450px] overflow-hidden rounded-3xl border border-white/10 bg-slate-950/50 p-2">
       <MapContainer center={[current.lat, current.lng]} zoom={5} scrollWheelZoom className="min-h-[450px]">
         <TileLayer
-          attribution='&copy; OpenStreetMap contributors'
+          attribution="&copy; OpenStreetMap contributors"
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <Marker position={[origin.lat, origin.lng]} icon={staticMarker("#22c55e")}>
@@ -49,7 +72,7 @@ export default function TrackingMapInner({ origin, destination, current }: Props
         <Marker position={[destination.lat, destination.lng]} icon={staticMarker("#ef4444")}>
           <Popup>{destination.name}</Popup>
         </Marker>
-        <Marker position={[current.lat, current.lng]} icon={pulseIcon}>
+        <Marker position={[current.lat, current.lng]} icon={pulsingIcon}>
           <Popup>Current shipment position</Popup>
         </Marker>
         <Polyline
@@ -60,7 +83,7 @@ export default function TrackingMapInner({ origin, destination, current }: Props
           ]}
           pathOptions={{ color: "#38bdf8", dashArray: "6 10", weight: 3 }}
         />
-        <Recenter lat={current.lat} lng={current.lng} />
+        <FitMapBounds origin={origin} destination={destination} current={current} />
       </MapContainer>
     </div>
   )

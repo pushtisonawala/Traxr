@@ -8,12 +8,13 @@ import (
 )
 
 type Config struct {
-	DatabaseURL   string
-	RedisURL      string
-	JWTSecret     string
-	GeminiAPIKey  string
-	Port          string
-	AllowedOrigin string
+	DatabaseURL        string
+	RedisURL           string
+	JWTSecret          string
+	GeminiAPIKey       string
+	TrackingMoreAPIKey string
+	Port               string
+	AllowedOrigin      string
 }
 
 func Load() Config {
@@ -22,12 +23,13 @@ func Load() Config {
 	}
 
 	return Config{
-		DatabaseURL:   getenv("DATABASE_URL", "postgres://traxr:traxrpass@localhost:5432/traxr"),
-		RedisURL:      getenv("REDIS_URL", "redis://localhost:6379"),
-		JWTSecret:     getenv("JWT_SECRET", "change-me"),
-		GeminiAPIKey:  os.Getenv("GEMINI_API_KEY"),
-		Port:          getenv("PORT", "8080"),
-		AllowedOrigin: getenv("ALLOWED_ORIGIN", "http://localhost:3000"),
+		DatabaseURL:        getenv("DATABASE_URL", "postgres://traxr:traxrpass@localhost:5432/traxr"),
+		RedisURL:           getenv("REDIS_URL", "redis://localhost:6379"),
+		JWTSecret:          getenv("JWT_SECRET", "change-me"),
+		GeminiAPIKey:       os.Getenv("GEMINI_API_KEY"),
+		TrackingMoreAPIKey: os.Getenv("TRACKINGMORE_API_KEY"),
+		Port:               getenv("PORT", "8080"),
+		AllowedOrigin:      getenv("ALLOWED_ORIGIN", "http://localhost:3000"),
 	}
 }
 

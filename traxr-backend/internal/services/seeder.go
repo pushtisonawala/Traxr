@@ -68,7 +68,10 @@ func SeedDemoData(ctx context.Context, pool *pgxpool.Pool) error {
 			currentLng = dest.Lng
 		}
 
-		trackingID := fmt.Sprintf("TRX-%s-%05d", time.Now().Format("20060102"), i+1)
+		trackingID, errTracking := GenerateTrackingIDNoCheck()
+		if errTracking != nil {
+			return errTracking
+		}
 		var orderID string
 		createdAt := time.Now().Add(time.Duration(-rnd.Intn(120)) * time.Hour)
 		err := pool.QueryRow(ctx, `
@@ -103,10 +106,12 @@ func SeedDemoData(ctx context.Context, pool *pgxpool.Pool) error {
 				lng = dest.Lng
 			}
 
+			note := SeedEventNote(status, route.Origin, route.Destination, rnd)
+
 			if _, err := pool.Exec(ctx, `
 				INSERT INTO tracking_events (order_id, status, location, lat, lng, note, created_at)
 				VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-				orderID, status, location, lat, lng, "Seeded journey update", ts,
+				orderID, status, location, lat, lng, note, ts,
 			); err != nil {
 				return err
 			}

@@ -6,6 +6,7 @@ export function OrderCard({ order }: { order: Order }) {
       <p className="font-mono text-sm text-sky-300">{order.tracking_id}</p>
       <p className="mt-2 text-lg font-semibold">{order.customer_name}</p>
       <p className="text-sm text-slate-400">{order.origin} to {order.destination}</p>
+      <p className="mt-2 text-sm text-slate-300">{order.weight_kg.toFixed(2)} kg</p>
     </div>
   )
 }

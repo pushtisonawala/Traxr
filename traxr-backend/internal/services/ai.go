@@ -12,7 +12,7 @@ import (
 	"traxr-backend/internal/models"
 )
 
-const fallbackPrediction = "Prediction unavailable — tracking normally."
+const fallbackPrediction = "Prediction unavailable - tracking normally."
 
 type AIService struct {
 	apiKey string
@@ -46,7 +46,7 @@ Average delay on this route: 2-4 hours
 Current conditions: moderate traffic, clear weather
 
 Respond with ONLY a single sentence prediction. Be specific about time and cause.
-Example: "Package expected on time — no disruptions detected on the NH-48 corridor."
+Example: "Package expected on time - no disruptions detected on the NH-48 corridor."
 Example: "High probability of 3-hour delay due to heavy congestion near Pune hub."`, order.Origin, order.Destination, order.Status, currentLocation, order.EstDelivery.Format(time.RFC3339), order.WeightKg)
 
 	body := map[string]any{
@@ -100,4 +100,17 @@ Example: "High probability of 3-hour delay due to heavy congestion near Pune hub
 	}
 
 	return text
+}
+
+func GenerateDelayPrediction(origin, destination, status, currentLocation, apiKey string) (string, error) {
+	service := NewAIService(apiKey)
+	order := models.Order{
+		Origin:      origin,
+		Destination: destination,
+		Status:      models.OrderStatus(status),
+		EstDelivery: time.Now().Add(24 * time.Hour),
+		WeightKg:    0,
+	}
+	prediction := service.PredictDelay(context.Background(), order, currentLocation)
+	return prediction, nil
 }

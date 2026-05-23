@@ -1,7 +1,9 @@
 package services
 
 import (
+	"fmt"
 	"math"
+	"math/rand"
 	"strings"
 
 	"traxr-backend/internal/models"
@@ -46,5 +48,25 @@ func SimulationLocation(status string, destination string) string {
 		return destination + " final doorstep"
 	default:
 		return "Booking desk"
+	}
+}
+
+func SeedEventNote(status models.OrderStatus, origin, nearestCity string, rnd *rand.Rand) string {
+	switch status {
+	case models.StatusPlaced:
+		return fmt.Sprintf("Order confirmed at %s warehouse", origin)
+	case models.StatusPickedUp:
+		return fmt.Sprintf("Package picked up from %s facility by courier partner", origin)
+	case models.StatusInTransit:
+		highways := []int{48, 44, 8, 4}
+		return fmt.Sprintf("Package in transit via NH-%d highway corridor", highways[rnd.Intn(len(highways))])
+	case models.StatusOutForDelivery:
+		return fmt.Sprintf("Out for delivery with field agent #%d", 100+rnd.Intn(900))
+	case models.StatusDelivered:
+		return "Package delivered and signed by recipient"
+	case models.StatusDelayed:
+		return fmt.Sprintf("Delay due to high volume at %s sorting hub - rescheduled", nearestCity)
+	default:
+		return "Shipment update received"
 	}
 }
