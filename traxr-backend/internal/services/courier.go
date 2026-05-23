@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -76,8 +77,19 @@ type TrackingMoreResponse struct {
 		Code    int    `json:"code"`
 		Message string `json:"message"`
 	} `json:"meta"`
-	Data []struct {
+	Data struct {
 		TrackInfo TrackingMoreTrackInfo `json:"track_info"`
+	} `json:"data"`
+}
+
+type TrackingMoreDetectResponse struct {
+	Meta struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+	} `json:"meta"`
+	Data []struct {
+		CourierCode string `json:"courier_code"`
+		CourierName string `json:"courier_name"`
 	} `json:"data"`
 }
 
@@ -114,41 +126,11 @@ type RealTrackingResult struct {
 	Destination string
 }
 
-func RegisterTracking(trackingNumber, courierCode, apiKey string) error {
-	url := "https://api.trackingmore.com/v4/trackings/create"
-
-	payload := map[string]string{
-		"tracking_number": trackingNumber,
-		"courier_code":    courierCode,
-	}
-	if courierCode == "" {
-		delete(payload, "courier_code")
-	}
-
-	body, _ := json.Marshal(payload)
-	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(string(body)))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Tracking-Api-Key", apiKey)
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	log.Printf("trackingmore register tracking=%s courier=%s status=%d", trackingNumber, courierCode, resp.StatusCode)
-	return nil
-}
-
-func fetchTrackingDetails(trackingNumber, apiKey string) (*TrackingMoreResponse, error) {
-	url := fmt.Sprintf("https://api.trackingmore.com/v4/trackings/%s", trackingNumber)
+func DetectCouriers(trackingNumber, apiKey string) ([]string, error) {
+	url := fmt.Sprintf("https://api.trackingmore.com/v4/couriers/detect?tracking_number=%s", trackingNumber)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+		return nil, err
 	}
 	req.Header.Set("Tracking-Api-Key", apiKey)
 	req.Header.Set("Content-Type", "application/json")
@@ -156,48 +138,76 @@ func fetchTrackingDetails(trackingNumber, apiKey string) (*TrackingMoreResponse,
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("http request: %w", err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("read body: %w", err)
+		return nil, err
+	}
+
+	var detectResp TrackingMoreDetectResponse
+	if err := json.Unmarshal(body, &detectResp); err != nil {
+		return nil, err
+	}
+
+	log.Printf("trackingmore detect tracking=%s meta_code=%d meta_message=%s candidates=%d", trackingNumber, detectResp.Meta.Code, detectResp.Meta.Message, len(detectResp.Data))
+
+	codes := make([]string, 0, len(detectResp.Data))
+	for _, item := range detectResp.Data {
+		if item.CourierCode != "" {
+			codes = append(codes, strings.ToLower(item.CourierCode))
+		}
+	}
+	return codes, nil
+}
+
+func createTracking(trackingNumber, courierCode, apiKey string) (*TrackingMoreResponse, error) {
+	url := "https://api.trackingmore.com/v4/trackings/create"
+	payload := map[string]string{
+		"tracking_number": trackingNumber,
+		"courier_code":    courierCode,
+	}
+
+	body, _ := json.Marshal(payload)
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Tracking-Api-Key", apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
 	}
 
 	var tmResp TrackingMoreResponse
-	if err := json.Unmarshal(body, &tmResp); err != nil {
-		return nil, fmt.Errorf("parse response: %w", err)
+	if err := json.Unmarshal(respBody, &tmResp); err != nil {
+		return nil, fmt.Errorf("parse create response: %w", err)
 	}
 
-	courier := ""
-	status := ""
-	if len(tmResp.Data) > 0 {
-		courier = tmResp.Data[0].TrackInfo.CourierCode
-		status = tmResp.Data[0].TrackInfo.Status
-	}
-
-	log.Printf("trackingmore fetch tracking=%s meta_code=%d meta_message=%s courier=%s status=%s data_len=%d", trackingNumber, tmResp.Meta.Code, tmResp.Meta.Message, courier, status, len(tmResp.Data))
-
-	if tmResp.Meta.Code != 200 && tmResp.Meta.Code != 4000 {
-		return nil, fmt.Errorf("trackingmore error %d: %s", tmResp.Meta.Code, tmResp.Meta.Message)
-	}
+	log.Printf("trackingmore create tracking=%s courier=%s http_status=%d meta_code=%d meta_message=%s", trackingNumber, courierCode, resp.StatusCode, tmResp.Meta.Code, tmResp.Meta.Message)
 
 	return &tmResp, nil
 }
 
 func buildRealTrackingResult(tmResp *TrackingMoreResponse, trackingNumber string) (*RealTrackingResult, error) {
-	if len(tmResp.Data) == 0 {
-		return nil, fmt.Errorf("no track_info returned for %s", trackingNumber)
-	}
-
-	trackInfo := tmResp.Data[0].TrackInfo
+	trackInfo := tmResp.Data.TrackInfo
 	allEvents := trackInfo.OriginInfo.Trackinfo
 	if len(allEvents) == 0 {
 		allEvents = trackInfo.DestinationInfo.Trackinfo
 	}
 
-	log.Printf("trackingmore build tracking=%s events=%d", trackingNumber, len(allEvents))
+	log.Printf("trackingmore build tracking=%s courier=%s events=%d", trackingNumber, trackInfo.CourierCode, len(allEvents))
 
 	if len(allEvents) == 0 {
 		return nil, fmt.Errorf("no tracking events found for %s", trackingNumber)
@@ -267,11 +277,11 @@ func buildRealTrackingResult(tmResp *TrackingMoreResponse, trackingNumber string
 }
 
 func FetchRealTracking(trackingNumber, courierHint, apiKey string) (*RealTrackingResult, error) {
-	candidateCourierCodes := []string{}
 	seen := map[string]bool{}
+	candidateCourierCodes := make([]string, 0)
 	addCode := func(code string) {
 		code = strings.TrimSpace(strings.ToLower(code))
-		if seen[code] {
+		if code == "" || seen[code] {
 			return
 		}
 		seen[code] = true
@@ -279,24 +289,25 @@ func FetchRealTracking(trackingNumber, courierHint, apiKey string) (*RealTrackin
 	}
 
 	addCode(courierHint)
-	addCode("")
-	addCode("delhivery")
-	addCode("shiprocket")
-	addCode("xpressbees")
-	addCode("dtdc")
-	addCode("bluedart")
-	addCode("fedex")
-	addCode("dhl")
+
+	detectedCodes, err := DetectCouriers(trackingNumber, apiKey)
+	if err == nil {
+		for _, code := range detectedCodes {
+			addCode(code)
+		}
+	}
+
+	for _, fallback := range []string{"delhivery", "shiprocket", "xpressbees", "dtdc", "bluedart", "fedex", "dhl"} {
+		addCode(fallback)
+	}
 
 	var lastErr error
 	for _, courierCode := range candidateCourierCodes {
 		log.Printf("trackingmore attempt tracking=%s courier=%s", trackingNumber, courierCode)
-		_ = RegisterTracking(trackingNumber, courierCode, apiKey)
-		time.Sleep(2 * time.Second)
 
-		tmResp, err := fetchTrackingDetails(trackingNumber, apiKey)
+		tmResp, err := createTracking(trackingNumber, courierCode, apiKey)
 		if err != nil {
-			log.Printf("trackingmore attempt failed tracking=%s courier=%s error=%v", trackingNumber, courierCode, err)
+			log.Printf("trackingmore create failed tracking=%s courier=%s error=%v", trackingNumber, courierCode, err)
 			lastErr = err
 			continue
 		}
@@ -308,7 +319,7 @@ func FetchRealTracking(trackingNumber, courierHint, apiKey string) (*RealTrackin
 			continue
 		}
 
-		if courierCode != "" && result.CourierName == "" {
+		if result.CourierName == "" {
 			result.CourierName = courierCode
 		}
 		log.Printf("trackingmore success tracking=%s resolved_courier=%s", trackingNumber, result.CourierName)
