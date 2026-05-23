@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import api from "@/lib/api"
 import { useTraxrStore } from "@/lib/store"
 import { wsClient } from "@/lib/websocket"
@@ -18,16 +19,19 @@ export default function TrackPage({ params }: { params: { orderId: string } }) {
   const { currentOrder, trackingEvents, setOrder, isConnected, setConnected } = useTraxrStore()
   const [error, setError] = useState("")
   const [wsError, setWsError] = useState(false)
+  const searchParams = useSearchParams()
 
   const normalizedOrderId = useMemo(() => params.orderId, [params.orderId])
   const isRealTracking = !normalizedOrderId.startsWith("TRX-")
+  const courierHint = searchParams.get("courier") || ""
 
   useEffect(() => {
     let mounted = true
 
     async function loadOrder() {
       try {
-        const apiEndpoint = isRealTracking ? `/track/real/${normalizedOrderId}` : `/track/${normalizedOrderId}`
+        const query = isRealTracking && courierHint ? `?courier=${encodeURIComponent(courierHint)}` : ""
+        const apiEndpoint = isRealTracking ? `/track/real/${normalizedOrderId}${query}` : `/track/${normalizedOrderId}`
         const response = await api.get<TrackPageResponse>(apiEndpoint)
         const order = "data" in response.data ? response.data.data : response.data
         if (!mounted) return
@@ -61,7 +65,7 @@ export default function TrackPage({ params }: { params: { orderId: string } }) {
       window.removeEventListener("traxr-ws-status", handler)
       setConnected(false)
     }
-  }, [isRealTracking, normalizedOrderId, setOrder, setConnected])
+  }, [courierHint, isRealTracking, normalizedOrderId, setOrder, setConnected])
 
   if (error) {
     return (

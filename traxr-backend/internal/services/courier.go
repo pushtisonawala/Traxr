@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -139,6 +140,7 @@ func RegisterTracking(trackingNumber, courierCode, apiKey string) error {
 	}
 	defer resp.Body.Close()
 
+	log.Printf("trackingmore register tracking=%s courier=%s status=%d", trackingNumber, courierCode, resp.StatusCode)
 	return nil
 }
 
@@ -168,6 +170,8 @@ func fetchTrackingDetails(trackingNumber, apiKey string) (*TrackingMoreResponse,
 		return nil, fmt.Errorf("parse response: %w", err)
 	}
 
+	log.Printf("trackingmore fetch tracking=%s meta_code=%d meta_message=%s courier=%s status=%s", trackingNumber, tmResp.Meta.Code, tmResp.Meta.Message, tmResp.Data.TrackInfo.CourierCode, tmResp.Data.TrackInfo.Status)
+
 	if tmResp.Meta.Code != 200 && tmResp.Meta.Code != 4000 {
 		return nil, fmt.Errorf("trackingmore error %d: %s", tmResp.Meta.Code, tmResp.Meta.Message)
 	}
@@ -180,6 +184,8 @@ func buildRealTrackingResult(tmResp *TrackingMoreResponse, trackingNumber string
 	if len(allEvents) == 0 {
 		allEvents = tmResp.Data.TrackInfo.DestinationInfo.Trackinfo
 	}
+
+	log.Printf("trackingmore build tracking=%s events=%d", trackingNumber, len(allEvents))
 
 	if len(allEvents) == 0 {
 		return nil, fmt.Errorf("no tracking events found for %s", trackingNumber)
@@ -248,22 +254,44 @@ func buildRealTrackingResult(tmResp *TrackingMoreResponse, trackingNumber string
 	}, nil
 }
 
-func FetchRealTracking(trackingNumber, apiKey string) (*RealTrackingResult, error) {
-	candidateCourierCodes := []string{"", "delhivery", "shiprocket", "xpressbees", "dtdc", "bluedart"}
-	var lastErr error
+func FetchRealTracking(trackingNumber, courierHint, apiKey string) (*RealTrackingResult, error) {
+	candidateCourierCodes := []string{}
+	seen := map[string]bool{}
+	addCode := func(code string) {
+		code = strings.TrimSpace(strings.ToLower(code))
+		if seen[code] {
+			return
+		}
+		seen[code] = true
+		candidateCourierCodes = append(candidateCourierCodes, code)
+	}
 
+	addCode(courierHint)
+	addCode("")
+	addCode("delhivery")
+	addCode("shiprocket")
+	addCode("xpressbees")
+	addCode("dtdc")
+	addCode("bluedart")
+	addCode("fedex")
+	addCode("dhl")
+
+	var lastErr error
 	for _, courierCode := range candidateCourierCodes {
+		log.Printf("trackingmore attempt tracking=%s courier=%s", trackingNumber, courierCode)
 		_ = RegisterTracking(trackingNumber, courierCode, apiKey)
 		time.Sleep(2 * time.Second)
 
 		tmResp, err := fetchTrackingDetails(trackingNumber, apiKey)
 		if err != nil {
+			log.Printf("trackingmore attempt failed tracking=%s courier=%s error=%v", trackingNumber, courierCode, err)
 			lastErr = err
 			continue
 		}
 
 		result, err := buildRealTrackingResult(tmResp, trackingNumber)
 		if err != nil {
+			log.Printf("trackingmore build failed tracking=%s courier=%s error=%v", trackingNumber, courierCode, err)
 			lastErr = err
 			continue
 		}
@@ -271,6 +299,7 @@ func FetchRealTracking(trackingNumber, apiKey string) (*RealTrackingResult, erro
 		if courierCode != "" && result.CourierName == "" {
 			result.CourierName = courierCode
 		}
+		log.Printf("trackingmore success tracking=%s resolved_courier=%s", trackingNumber, result.CourierName)
 		return result, nil
 	}
 

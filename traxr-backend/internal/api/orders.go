@@ -156,7 +156,8 @@ func (h *Handler) TrackReal(c *gin.Context) {
 		return
 	}
 
-	result, err := services.FetchRealTracking(trackingNumber, h.Config.TrackingMoreAPIKey)
+	courierHint := c.Query("courier")
+	result, err := services.FetchRealTracking(trackingNumber, courierHint, h.Config.TrackingMoreAPIKey)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"success": false,
