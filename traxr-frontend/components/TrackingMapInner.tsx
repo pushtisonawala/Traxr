@@ -81,7 +81,7 @@ function FitMapBounds({ origin, destination, current }: Props) {
 }
 
 export default function TrackingMapInner({ origin, destination, current }: Props) {
-  const polylinePositions = useMemo(() => ([
+  const polylinePositions: [number, number][] = useMemo(() => ([
     [origin.lat, origin.lng],
     [current.lat, current.lng],
     [destination.lat, destination.lng]
