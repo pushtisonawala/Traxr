@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { BellRing, BrainCircuit, Truck } from "lucide-react"
 import { FormEvent, useState } from "react"
+import api from "@/lib/api"
 
 const courierOptions = [
   { label: "Auto-detect", value: "" },
@@ -19,6 +20,7 @@ const courierOptions = [
 export default function LandingPage() {
   const [trackingID, setTrackingID] = useState("")
   const [courierHint, setCourierHint] = useState("")
+  const [loadingDemo, setLoadingDemo] = useState(false)
   const router = useRouter()
 
   function onSubmit(event: FormEvent) {
@@ -33,6 +35,16 @@ export default function LandingPage() {
 
     const query = courierHint ? `?courier=${encodeURIComponent(courierHint)}` : ""
     router.push(`/track/${normalized}${query}`)
+  }
+
+  async function openDemoShipment() {
+    setLoadingDemo(true)
+    try {
+      const response = await api.get<{ id: string; tracking_id: string }>("/admin/random-active")
+      router.push(`/track/${response.data.tracking_id}`)
+    } finally {
+      setLoadingDemo(false)
+    }
   }
 
   return (
@@ -74,6 +86,25 @@ export default function LandingPage() {
             <p className="text-xs text-slate-500">Use this if auto-detect misses the courier.</p>
           </div>
         </form>
+
+        <div className="mt-6 flex flex-col gap-3 md:flex-row">
+          <button
+            onClick={openDemoShipment}
+            disabled={loadingDemo}
+            className="rounded-2xl border border-sky-500/30 bg-sky-500/15 px-6 py-3 text-sm font-medium text-sky-200"
+          >
+            {loadingDemo ? "Loading demo..." : "Track demo shipment →"}
+          </button>
+          <button
+            onClick={() => window.open("/admin", "_blank")}
+            className="rounded-2xl border border-white/10 bg-white/5 px-6 py-3 text-sm font-medium text-slate-200"
+          >
+            Open demo controls →
+          </button>
+        </div>
+        <p className="mt-3 text-sm text-slate-400">
+          Open both links side by side to see live WebSocket updates in real time
+        </p>
 
         <p style={{ fontSize: "13px", color: "#64748b", marginTop: "8px", textAlign: "center" }}>
           Works with 900+ couriers worldwide - or try demo ID: TRX-20260523-DEMO1

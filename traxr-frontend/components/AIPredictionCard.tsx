@@ -1,4 +1,21 @@
+"use client"
+
+import { useEffect, useState } from "react"
+
 export default function AIPredictionCard({ prediction }: { prediction: string | null }) {
+  const [displayPrediction, setDisplayPrediction] = useState(prediction)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    const timer = window.setTimeout(() => {
+      setDisplayPrediction(prediction)
+      setLoading(false)
+    }, 2000)
+
+    return () => window.clearTimeout(timer)
+  }, [prediction])
+
   return (
     <div style={{
       background: "rgba(99,102,241,0.08)",
@@ -24,14 +41,7 @@ export default function AIPredictionCard({ prediction }: { prediction: string | 
         }}>Gemini</span>
       </div>
 
-      {prediction ? (
-        <p style={{
-          fontSize: "14px", lineHeight: 1.6,
-          color: "#e2e8f0", margin: 0
-        }}>
-          {prediction}
-        </p>
-      ) : (
+      {loading ? (
         <div>
           {[100, 85, 60].map((w, i) => (
             <div key={i} style={{
@@ -45,7 +55,18 @@ export default function AIPredictionCard({ prediction }: { prediction: string | 
           ))}
           <style>{`@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
         </div>
-      )}
+      ) : displayPrediction ? (
+        <p style={{
+          fontSize: "14px",
+          lineHeight: 1.6,
+          color: "#e2e8f0",
+          margin: 0,
+          opacity: 1,
+          transition: "opacity 300ms ease"
+        }}>
+          {displayPrediction}
+        </p>
+      ) : null}
 
       <div style={{ marginTop: "10px", fontSize: "11px", color: "#475569" }}>
         Powered by Google Gemini - updates with each status change

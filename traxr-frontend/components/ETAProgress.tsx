@@ -68,7 +68,7 @@ export default function ETAProgress({ order }: { order: Order }) {
           left: `calc(${progress}% - 10px)`,
           top: "-10px",
           fontSize: "18px",
-          transition: "left 1s ease"
+          transition: "left 1.2s ease"
         }}>{"\uD83D\uDE9A"}</div>
       </div>
 

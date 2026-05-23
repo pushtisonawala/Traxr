@@ -19,6 +19,8 @@ export default function TrackPage({ params }: { params: { orderId: string } }) {
   const { currentOrder, trackingEvents, setOrder, isConnected, setConnected } = useTraxrStore()
   const [error, setError] = useState("")
   const [wsError, setWsError] = useState(false)
+  const [statusPulse, setStatusPulse] = useState(false)
+  const [tooltip, setTooltip] = useState("")
   const searchParams = useSearchParams()
 
   const normalizedOrderId = useMemo(() => params.orderId, [params.orderId])
@@ -41,6 +43,13 @@ export default function TrackPage({ params }: { params: { orderId: string } }) {
           wsClient.connect(order.id, (message) => {
             if (message.type === "status_update") {
               const payload = message.payload as OrderWithEvents
+              document.body.style.boxShadow = "inset 0 0 0 2px #3b82f6"
+              document.body.style.transition = "box-shadow 1s"
+              window.setTimeout(() => {
+                document.body.style.boxShadow = "none"
+              }, 1000)
+              setStatusPulse(true)
+              window.setTimeout(() => setStatusPulse(false), 200)
               setOrder(payload, payload.tracking_events)
             }
           })
@@ -66,6 +75,12 @@ export default function TrackPage({ params }: { params: { orderId: string } }) {
       setConnected(false)
     }
   }, [courierHint, isRealTracking, normalizedOrderId, setOrder, setConnected])
+
+  async function shareDemo() {
+    await navigator.clipboard.writeText(window.location.href)
+    setTooltip("Link copied - share this to show live tracking")
+    window.setTimeout(() => setTooltip(""), 1800)
+  }
 
   if (error) {
     return (
@@ -102,14 +117,36 @@ export default function TrackPage({ params }: { params: { orderId: string } }) {
               </div>
             )}
           </div>
-          <LiveBadge connected={currentOrder.is_real ? true : isConnected} error={currentOrder.is_real ? false : wsError} />
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <button onClick={shareDemo} className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200">
+                Share demo
+              </button>
+              {tooltip ? (
+                <div className="absolute right-0 top-full mt-2 whitespace-nowrap rounded-full border border-sky-500/30 bg-slate-950 px-3 py-1 text-xs text-sky-200">
+                  {tooltip}
+                </div>
+              ) : null}
+            </div>
+            <LiveBadge connected={currentOrder.is_real ? true : isConnected} error={currentOrder.is_real ? false : wsError} />
+          </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[40%_60%]">
           <div className="space-y-6">
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-              <p className="text-sm text-slate-400">Customer</p>
-              <h1 className="mt-1 text-2xl font-semibold">{currentOrder.customer_name}</h1>
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm text-slate-400">Customer</p>
+                  <h1 className="mt-1 text-2xl font-semibold">{currentOrder.customer_name}</h1>
+                </div>
+                <span
+                  className="rounded-full bg-sky-500/15 px-3 py-1 text-xs uppercase tracking-[0.18em] text-sky-200"
+                  style={{ transform: statusPulse ? "scale(1.15)" : "scale(1)", transition: "transform 200ms ease" }}
+                >
+                  {currentOrder.status.replaceAll("_", " ")}
+                </span>
+              </div>
               <p className="mt-4 text-sm text-slate-300">{currentOrder.origin} → {currentOrder.destination}</p>
               <div className="mt-5 grid grid-cols-2 gap-3 text-sm text-slate-400">
                 <div>

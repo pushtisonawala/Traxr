@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useMemo, useRef } from "react"
 import L from "leaflet"
 import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from "react-leaflet"
 
@@ -43,6 +43,28 @@ type Props = {
   current: { lat: number; lng: number }
 }
 
+function MovingCurrentMarker({ current }: { current: { lat: number; lng: number } }) {
+  const markerRef = useRef<L.Marker | null>(null)
+
+  useEffect(() => {
+    if (markerRef.current) {
+      markerRef.current.setLatLng([current.lat, current.lng])
+    }
+  }, [current.lat, current.lng])
+
+  return (
+    <Marker
+      position={[current.lat, current.lng]}
+      icon={pulsingIcon}
+      ref={(marker) => {
+        markerRef.current = marker as unknown as L.Marker | null
+      }}
+    >
+      <Popup>Current shipment position</Popup>
+    </Marker>
+  )
+}
+
 function FitMapBounds({ origin, destination, current }: Props) {
   const map = useMap()
 
@@ -59,6 +81,12 @@ function FitMapBounds({ origin, destination, current }: Props) {
 }
 
 export default function TrackingMapInner({ origin, destination, current }: Props) {
+  const polylinePositions = useMemo(() => ([
+    [origin.lat, origin.lng],
+    [current.lat, current.lng],
+    [destination.lat, destination.lng]
+  ]), [origin, current, destination])
+
   return (
     <div className="min-h-[450px] overflow-hidden rounded-3xl border border-white/10 bg-slate-950/50 p-2">
       <MapContainer center={[current.lat, current.lng]} zoom={5} scrollWheelZoom className="min-h-[450px]">
@@ -72,15 +100,9 @@ export default function TrackingMapInner({ origin, destination, current }: Props
         <Marker position={[destination.lat, destination.lng]} icon={staticMarker("#ef4444")}>
           <Popup>{destination.name}</Popup>
         </Marker>
-        <Marker position={[current.lat, current.lng]} icon={pulsingIcon}>
-          <Popup>Current shipment position</Popup>
-        </Marker>
+        <MovingCurrentMarker current={current} />
         <Polyline
-          positions={[
-            [origin.lat, origin.lng],
-            [current.lat, current.lng],
-            [destination.lat, destination.lng]
-          ]}
+          positions={polylinePositions}
           pathOptions={{ color: "#38bdf8", dashArray: "6 10", weight: 3 }}
         />
         <FitMapBounds origin={origin} destination={destination} current={current} />

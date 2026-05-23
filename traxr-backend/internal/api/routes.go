@@ -45,6 +45,7 @@ func SetupRouter(handler *Handler) *gin.Engine {
 	router.GET("/track/real/:trackingNumber", handler.TrackReal)
 	router.GET("/ws", handler.HandleWS)
 	router.GET("/admin/orders", handler.AdminOrders)
+	router.GET("/admin/random-active", handler.AdminRandomActive)
 	router.POST("/admin/seed", handler.ResetAndSeed)
 	router.POST("/admin/simulate/:orderId", handler.AdminSimulate)
 

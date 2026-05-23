@@ -4,15 +4,13 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import api from "@/lib/api"
 import { Order } from "@/types"
 
-const statusOrder = ["placed", "picked_up", "in_transit", "out_for_delivery", "delivered"]
-
 const statusStyles: Record<string, string> = {
-  placed: "bg-slate-500/20 text-slate-200",
-  picked_up: "bg-blue-500/20 text-blue-200",
-  in_transit: "bg-cyan-500/20 text-cyan-200",
-  out_for_delivery: "bg-amber-500/20 text-amber-200",
-  delivered: "bg-emerald-500/20 text-emerald-200",
-  delayed: "bg-rose-500/20 text-rose-200",
+  placed: "bg-slate-500/20 text-slate-200 border-slate-500/40",
+  picked_up: "bg-blue-500/20 text-blue-200 border-blue-500/40",
+  in_transit: "bg-cyan-500/20 text-cyan-200 border-cyan-500/40",
+  out_for_delivery: "bg-amber-500/20 text-amber-200 border-amber-500/40",
+  delivered: "bg-emerald-500/20 text-emerald-200 border-emerald-500/40",
+  delayed: "bg-rose-500/20 text-rose-200 border-rose-500/40",
 }
 
 type SimulateResponse = {
@@ -25,173 +23,128 @@ type SimulateResponse = {
   }
 }
 
+type Toast = {
+  id: string
+  message: string
+}
+
 export default function AdminPage() {
   const [orders, setOrders] = useState<Order[]>([])
-  const [selectedOrder, setSelectedOrder] = useState("")
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [successId, setSuccessId] = useState<string | null>(null)
   const [log, setLog] = useState<string[]>([])
-  const [isSimulating, setIsSimulating] = useState(false)
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [toasts, setToasts] = useState<Toast[]>([])
+  const logTopRef = useRef<HTMLDivElement | null>(null)
 
   async function loadOrders() {
     const response = await api.get<Order[]>("/admin/orders")
     setOrders(response.data)
-    const nextOrder = response.data.find((order) => order.status !== "delivered")
-    if (!selectedOrder && nextOrder) {
-      setSelectedOrder(nextOrder.id)
-    }
   }
 
   useEffect(() => {
     loadOrders()
   }, [])
 
-  async function resetSeed() {
-    await api.post("/admin/seed")
-    await loadOrders()
-    alert("Created 15 demo orders with demo@traxr.com / demo1234")
-  }
+  useEffect(() => {
+    if (logTopRef.current) {
+      logTopRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
+    }
+  }, [log])
 
-  async function advanceStatus(orderId: string) {
-    const response = await api.post<SimulateResponse>(`/admin/simulate/${orderId}`)
-    const updatedOrder = response.data.data.order
-    setOrders((current) => current.map((order) => order.id === orderId ? updatedOrder : order))
-    setLog((current) => [
-      `[${new Date().toLocaleTimeString()}] ${updatedOrder.tracking_id} → ${response.data.data.new_status}`,
-      ...current
-    ])
-  }
-
-  function copy(value: string) {
-    navigator.clipboard.writeText(value)
-  }
-
-  function startSimulation() {
-    if (!selectedOrder) return
-    setIsSimulating(true)
-    timerRef.current = setInterval(() => {
-      const order = orders.find((item) => item.id === selectedOrder)
-      if (!order || order.status === "delivered") {
-        stopSimulation()
-        return
-      }
-      advanceStatus(selectedOrder)
+  function showToast(message: string) {
+    const id = `${Date.now()}-${Math.random()}`
+    setToasts((current) => [{ id, message }, ...current])
+    window.setTimeout(() => {
+      setToasts((current) => current.filter((toast) => toast.id !== id))
     }, 3000)
   }
 
-  function stopSimulation() {
-    if (timerRef.current) {
-      clearInterval(timerRef.current)
-      timerRef.current = null
+  async function advanceStatus(orderId: string) {
+    try {
+      setUpdatingId(orderId)
+      const response = await api.post<SimulateResponse>(`/admin/simulate/${orderId}`)
+      const updatedOrder = response.data.data.order
+      setOrders((current) => current.map((order) => order.id === orderId ? updatedOrder : order))
+      setSuccessId(orderId)
+      const logLine = `[${new Date().toLocaleTimeString()}] ${updatedOrder.tracking_id} → ${response.data.data.new_status} ✓`
+      setLog((current) => [logLine, ...current])
+      showToast(`📦 ${updatedOrder.tracking_id} advanced to ${response.data.data.new_status}`)
+      window.setTimeout(() => setSuccessId((current) => current === orderId ? null : current), 1000)
+    } finally {
+      setUpdatingId(null)
     }
-    setIsSimulating(false)
   }
 
-  const progress = useMemo(() => {
-    const order = orders.find((item) => item.id === selectedOrder)
-    if (!order) return 0
-    const index = statusOrder.indexOf(order.status)
-    return { current: Math.max(index, 0) + 1, total: statusOrder.length, width: ((Math.max(index, 0) + 1) / statusOrder.length) * 100 }
-  }, [orders, selectedOrder])
+  const activeOrders = useMemo(() => orders.filter((order) => order.status !== "delivered").slice(0, 5), [orders])
 
   return (
-    <main className="min-h-screen px-6 py-10">
+    <main className="min-h-screen bg-[#060b16] px-6 py-10 font-mono text-slate-100">
       <div className="mx-auto max-w-7xl space-y-8">
-        <div>
-          <h1 className="font-mono text-4xl font-bold">Demo Controls</h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">Simulate live shipments for demo</p>
+        <div className="flex items-center gap-3 border-b border-white/10 pb-6">
+          <span className="inline-block h-3 w-3 animate-pulse rounded-full bg-red-500 shadow-[0_0_14px_rgba(239,68,68,0.9)]" />
+          <div>
+            <h1 className="text-4xl font-bold tracking-[0.2em]">LIVE DEMO CONTROL</h1>
+            <p className="mt-2 text-sm text-slate-400">Mission control for real-time shipment simulation</p>
+          </div>
         </div>
 
-        <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
-          <h2 className="text-xl font-semibold">Demo credentials</h2>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            {[
-              { label: "Email", value: "demo@traxr.com" },
-              { label: "Password", value: "demo1234" }
-            ].map((item) => (
-              <div key={item.label} className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{item.label}</p>
-                <div className="mt-2 flex items-center justify-between gap-4">
-                  <p className="font-mono text-sm text-slate-100">{item.value}</p>
-                  <button onClick={() => copy(item.value)} className="rounded-full border border-white/10 px-3 py-1 text-xs">
-                    Copy
+        <div className="fixed right-6 top-6 z-50 space-y-3">
+          {toasts.map((toast) => (
+            <div key={toast.id} className="rounded-2xl border border-sky-500/30 bg-slate-950/95 px-4 py-3 text-sm text-sky-200 shadow-2xl">
+              {toast.message}
+            </div>
+          ))}
+        </div>
+
+        <section className="rounded-[28px] border border-white/10 bg-white/[0.03] p-8 shadow-[0_30px_120px_rgba(0,0,0,0.45)]">
+          <h2 className="text-2xl font-semibold tracking-[0.12em]">Select shipment to simulate</h2>
+          <p className="mt-2 text-sm text-slate-400">Advance any active shipment and watch public tracking pages update live.</p>
+
+          <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {activeOrders.map((order) => {
+              const isUpdating = updatingId === order.id
+              const isSuccess = successId === order.id
+              return (
+                <div key={order.id} className="rounded-3xl border border-white/10 bg-slate-950/60 p-6 shadow-[0_20px_80px_rgba(2,6,23,0.55)]">
+                  <p className="text-sm text-slate-500">Tracking ID</p>
+                  <p className="mt-2 text-lg text-sky-300">{order.tracking_id}</p>
+                  <p className="mt-4 text-sm text-slate-400">Route</p>
+                  <p className="mt-2 text-base text-slate-100">{order.origin} → {order.destination}</p>
+                  <div className="mt-5">
+                    <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${statusStyles[order.status] || statusStyles.placed}`}>
+                      {order.status.replaceAll("_", " ")}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => advanceStatus(order.id)}
+                    disabled={isUpdating}
+                    className={`mt-6 flex w-full items-center justify-center rounded-2xl px-4 py-4 text-sm font-semibold tracking-[0.18em] transition ${
+                      isSuccess
+                        ? "bg-emerald-500 text-slate-950"
+                        : isUpdating
+                          ? "bg-sky-500/70 text-slate-950"
+                          : "bg-sky-500 text-slate-950 hover:bg-sky-400"
+                    }`}
+                  >
+                    {isUpdating ? "Updating..." : isSuccess ? "✓ Done" : "▶ ADVANCE"}
                   </button>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Orders table</h2>
-            <button onClick={resetSeed} className="rounded-full bg-sky-500 px-5 py-3 text-sm font-medium text-slate-950">
-              Reset & seed demo data
-            </button>
-          </div>
-          <div className="mt-5 overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="text-slate-400">
-                <tr>
-                  <th className="pb-3">Tracking ID</th>
-                  <th className="pb-3">Customer</th>
-                  <th className="pb-3">Route</th>
-                  <th className="pb-3">Status</th>
-                  <th className="pb-3">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {orders.map((order) => (
-                  <tr key={order.id} className="border-t border-white/10">
-                    <td className="py-4 font-mono text-sky-300">{order.tracking_id}</td>
-                    <td className="py-4">{order.customer_name}</td>
-                    <td className="py-4">{order.origin} → {order.destination}</td>
-                    <td className="py-4">
-                      <span className={`rounded-full px-3 py-1 text-xs ${statusStyles[order.status] || statusStyles.placed}`}>
-                        {order.status.replaceAll("_", " ")}
-                      </span>
-                    </td>
-                    <td className="py-4">
-                      <div className="flex gap-2">
-                        <button onClick={() => advanceStatus(order.id)} className="rounded-full border border-white/10 px-3 py-1.5 text-xs">
-                          Advance ▶
-                        </button>
-                        <button onClick={() => window.open(`/track/${order.tracking_id}`, "_blank")} className="rounded-full border border-white/10 px-3 py-1.5 text-xs">
-                          Open tracking
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
-          <h2 className="text-xl font-semibold">Live journey simulator</h2>
-          <div className="mt-5 flex flex-col gap-4 md:flex-row">
-            <select className="rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-3" value={selectedOrder} onChange={(e) => setSelectedOrder(e.target.value)}>
-              {orders.filter((order) => order.status !== "delivered").map((order) => (
-                <option key={order.id} value={order.id}>
-                  {order.tracking_id} · {order.origin} → {order.destination}
-                </option>
-              ))}
-            </select>
-            {!isSimulating ? (
-              <button onClick={startSimulation} className="rounded-full bg-emerald-500 px-5 py-3 text-sm font-medium text-slate-950">▶ Start</button>
+        <section className="rounded-[28px] border border-white/10 bg-black/40 p-6">
+          <h2 className="text-xl font-semibold tracking-[0.16em]">Live event log</h2>
+          <div className="mt-4 h-[200px] overflow-y-auto rounded-2xl border border-white/10 bg-slate-950/70 p-4 text-sm text-emerald-300">
+            <div ref={logTopRef} />
+            {log.length === 0 ? (
+              <p className="text-slate-500">No events yet. Advance a shipment to start the log.</p>
             ) : (
-              <button onClick={stopSimulation} className="rounded-full bg-rose-500 px-5 py-3 text-sm font-medium text-white">⏹ Stop</button>
+              log.map((entry) => (
+                <p key={entry} className="mb-2 last:mb-0">{entry}</p>
+              ))
             )}
-          </div>
-          <div className="mt-4 text-sm text-slate-400">Step {progress.current} of {progress.total}</div>
-          <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-800">
-            <div className="h-full rounded-full bg-gradient-to-r from-sky-500 to-emerald-400 transition-all" style={{ width: `${progress.width}%` }} />
-          </div>
-          <div className="mt-5 rounded-2xl border border-white/10 bg-slate-950/50 p-4">
-            <p className="mb-3 text-sm font-medium text-slate-300">Live log</p>
-            <div className="space-y-2 text-sm text-slate-400">
-              {log.length === 0 ? <p>No simulation events yet.</p> : log.map((entry) => <p key={entry}>{entry}</p>)}
-            </div>
           </div>
         </section>
       </div>
