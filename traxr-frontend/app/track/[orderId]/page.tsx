@@ -104,6 +104,9 @@ export default function TrackPage({ params }: { params: { orderId: string } }) {
     return <main className="min-h-screen px-6 py-12 text-slate-300">Loading tracking data...</main>
   }
 
+  const safeWeight = Number(currentOrder.weight_kg || 0).toFixed(2)
+  const safeEvents = trackingEvents || []
+
   return (
     <main className="min-h-screen px-4 py-6 md:px-8">
       <div className="mx-auto max-w-7xl">
@@ -151,7 +154,7 @@ export default function TrackPage({ params }: { params: { orderId: string } }) {
               <div className="mt-5 grid grid-cols-2 gap-3 text-sm text-slate-400">
                 <div>
                   <p>Weight</p>
-                  <p className="mt-1 text-white">{currentOrder.weight_kg.toFixed(2)} kg</p>
+                  <p className="mt-1 text-white">{safeWeight} kg</p>
                 </div>
                 <div>
                   <p>Created</p>
@@ -161,7 +164,7 @@ export default function TrackPage({ params }: { params: { orderId: string } }) {
             </div>
             <ETAProgress order={currentOrder} />
             <AIPredictionCard prediction={currentOrder.ai_prediction} />
-            <StatusTimeline events={trackingEvents} />
+            <StatusTimeline events={safeEvents} />
           </div>
 
           <TrackingMap
