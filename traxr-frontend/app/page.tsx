@@ -6,35 +6,33 @@ import { BellRing, BrainCircuit, Truck } from "lucide-react"
 import { FormEvent, useState } from "react"
 import api from "@/lib/api"
 
-const courierOptions = [
-  { label: "Auto-detect", value: "" },
-  { label: "Delhivery", value: "delhivery" },
-  { label: "Shiprocket", value: "shiprocket" },
-  { label: "Bluedart", value: "bluedart" },
-  { label: "DTDC", value: "dtdc" },
-  { label: "XpressBees", value: "xpressbees" },
-  { label: "FedEx", value: "fedex" },
-  { label: "DHL", value: "dhl" }
-]
+function normalizeTrackingInput(input: string) {
+  const trimmed = input.trim()
+  if (!trimmed) return ""
+
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    try {
+      const parsed = new URL(trimmed)
+      const segments = parsed.pathname.split("/").filter(Boolean)
+      return segments[segments.length - 1] || trimmed
+    } catch {
+      return trimmed
+    }
+  }
+
+  return trimmed
+}
 
 export default function LandingPage() {
   const [trackingID, setTrackingID] = useState("")
-  const [courierHint, setCourierHint] = useState("")
   const [loadingDemo, setLoadingDemo] = useState(false)
   const router = useRouter()
 
   function onSubmit(event: FormEvent) {
     event.preventDefault()
-    if (!trackingID.trim()) return
-
-    const normalized = trackingID.trim()
-    if (normalized.startsWith("TRX-")) {
-      router.push(`/track/${normalized}`)
-      return
-    }
-
-    const query = courierHint ? `?courier=${encodeURIComponent(courierHint)}` : ""
-    router.push(`/track/${normalized}${query}`)
+    const normalized = normalizeTrackingInput(trackingID)
+    if (!normalized) return
+    router.push(`/track/${normalized}`)
   }
 
   async function openDemoShipment() {
@@ -60,31 +58,16 @@ export default function LandingPage() {
           </p>
         </div>
 
-        <form onSubmit={onSubmit} className="flex w-full max-w-3xl flex-col gap-4 rounded-[2rem] border border-white/10 bg-white/5 p-4 shadow-2xl backdrop-blur">
-          <div className="flex flex-col gap-4 md:flex-row">
-            <input
-              value={trackingID}
-              onChange={(event) => setTrackingID(event.target.value.toUpperCase())}
-              placeholder="Enter any tracking ID - Bluedart, Delhivery, DTDC and more"
-              className="flex-1 rounded-2xl border border-white/10 bg-slate-950/50 px-5 py-4 font-mono text-sm outline-none placeholder:text-slate-500"
-            />
-            <button type="submit" className="rounded-2xl bg-sky-500 px-6 py-4 font-medium text-slate-950 transition hover:bg-sky-400">
-              Track shipment
-            </button>
-          </div>
-          <div className="flex flex-col gap-2 md:flex-row md:items-center">
-            <label className="text-xs uppercase tracking-[0.2em] text-slate-500">Courier hint</label>
-            <select
-              value={courierHint}
-              onChange={(event) => setCourierHint(event.target.value)}
-              className="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-slate-200 outline-none"
-            >
-              {courierOptions.map((option) => (
-                <option key={option.label} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-            <p className="text-xs text-slate-500">Use this if auto-detect misses the courier.</p>
-          </div>
+        <form onSubmit={onSubmit} className="flex w-full max-w-3xl flex-col gap-4 rounded-[2rem] border border-white/10 bg-white/5 p-4 shadow-2xl backdrop-blur md:flex-row">
+          <input
+            value={trackingID}
+            onChange={(event) => setTrackingID(event.target.value)}
+            placeholder="Enter tracking ID"
+            className="flex-1 rounded-2xl border border-white/10 bg-slate-950/50 px-5 py-4 font-mono text-sm outline-none placeholder:text-slate-500"
+          />
+          <button type="submit" className="rounded-2xl bg-sky-500 px-6 py-4 font-medium text-slate-950 transition hover:bg-sky-400">
+            Track shipment
+          </button>
         </form>
 
         <div className="mt-6 flex flex-col gap-3 md:flex-row">
@@ -105,17 +88,6 @@ export default function LandingPage() {
         <p className="mt-3 text-sm text-slate-400">
           Open both links side by side to see live WebSocket updates in real time
         </p>
-
-        <p style={{ fontSize: "13px", color: "#64748b", marginTop: "8px", textAlign: "center" }}>
-          Works with 900+ couriers worldwide - or try demo ID: TRX-20260523-DEMO1
-        </p>
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-          {["Bluedart", "Delhivery", "DTDC", "Ecom Express", "FedEx", "DHL", "1200+ more"].map((courier) => (
-            <span key={courier} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-400">
-              {courier}
-            </span>
-          ))}
-        </div>
 
         <div className="mt-12 grid w-full max-w-6xl gap-6 md:grid-cols-3">
           {[
