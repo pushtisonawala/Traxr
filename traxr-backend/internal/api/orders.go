@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -159,6 +160,13 @@ func (h *Handler) TrackReal(c *gin.Context) {
 	courierHint := c.Query("courier")
 	result, err := services.FetchRealTracking(trackingNumber, courierHint, h.Config.TrackingMoreAPIKey)
 	if err != nil {
+		if strings.Contains(err.Error(), services.ErrTrackingAlreadyRegisteredNoEvents) {
+			c.JSON(http.StatusNotFound, gin.H{
+				"success": false,
+				"error":   "This tracking number is already registered in Trackingmore, but live checkpoints are not currently accessible through the API. Try a fresh tracking number, or re-check with an explicit courier hint like Delhivery.",
+			})
+			return
+		}
 		c.JSON(http.StatusNotFound, gin.H{
 			"success": false,
 			"error":   "Tracking info not found. Supported couriers: Bluedart, Delhivery, DTDC, Ecom Express, XpressBees, FedEx, DHL",

@@ -72,6 +72,13 @@ export default function TrackPage({ params }: { params: { orderId: string } }) {
       <main className="min-h-screen px-6 py-12">
         <div className="mx-auto max-w-3xl rounded-3xl border border-rose-500/20 bg-rose-500/10 p-8">
           <p className="text-lg text-rose-200">{error}</p>
+          {!normalizedOrderId.startsWith("TRX-") ? (
+            <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/40 p-4 text-sm text-slate-300">
+              <p>Tips:</p>
+              <p className="mt-2">1. Try again with a courier hint from the homepage, such as Delhivery.</p>
+              <p className="mt-1">2. Fresh tracking numbers usually work better than ones already imported into Trackingmore.</p>
+            </div>
+          ) : null}
           <Link href="/" className="mt-4 inline-block text-sky-300">Back to search</Link>
         </div>
       </main>

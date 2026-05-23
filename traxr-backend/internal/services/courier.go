@@ -13,6 +13,8 @@ import (
 	"traxr-backend/internal/models"
 )
 
+const ErrTrackingAlreadyRegisteredNoEvents = "TRACKING_ALREADY_REGISTERED_NO_EVENTS"
+
 var cityCoords = map[string][2]float64{
 	"mumbai":        {19.0760, 72.8777},
 	"bangalore":     {12.9716, 77.5946},
@@ -360,7 +362,11 @@ func FetchRealTracking(trackingNumber, courierHint, apiKey string) (*RealTrackin
 		result, err := buildRealTrackingResult(tmResp, trackingNumber)
 		if err != nil {
 			log.Printf("trackingmore build failed tracking=%s courier=%s error=%v", trackingNumber, courierCode, err)
-			lastErr = err
+			if tmResp.Meta.Code == 4101 {
+				lastErr = fmt.Errorf("%s", ErrTrackingAlreadyRegisteredNoEvents)
+			} else {
+				lastErr = err
+			}
 			continue
 		}
 
