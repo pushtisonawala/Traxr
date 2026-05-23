@@ -64,10 +64,10 @@ type TrackingMoreTrackInfo struct {
 }
 
 type TrackingMoreEvent struct {
-	Date               string `json:"Date"`
-	StatusDescription  string `json:"StatusDescription"`
-	Details            string `json:"Details"`
-	CheckpointStatus   string `json:"checkpoint_status"`
+	Date              string `json:"Date"`
+	StatusDescription string `json:"StatusDescription"`
+	Details           string `json:"Details"`
+	CheckpointStatus  string `json:"checkpoint_status"`
 }
 
 type TrackingMoreResponse struct {
@@ -142,12 +142,8 @@ func RegisterTracking(trackingNumber, courierCode, apiKey string) error {
 	return nil
 }
 
-func FetchRealTracking(trackingNumber, apiKey string) (*RealTrackingResult, error) {
-	_ = RegisterTracking(trackingNumber, "", apiKey)
-	time.Sleep(2 * time.Second)
-
+func fetchTrackingDetails(trackingNumber, apiKey string) (*TrackingMoreResponse, error) {
 	url := fmt.Sprintf("https://api.trackingmore.com/v4/trackings/%s", trackingNumber)
-
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
@@ -176,6 +172,10 @@ func FetchRealTracking(trackingNumber, apiKey string) (*RealTrackingResult, erro
 		return nil, fmt.Errorf("trackingmore error %d: %s", tmResp.Meta.Code, tmResp.Meta.Message)
 	}
 
+	return &tmResp, nil
+}
+
+func buildRealTrackingResult(tmResp *TrackingMoreResponse, trackingNumber string) (*RealTrackingResult, error) {
 	allEvents := tmResp.Data.TrackInfo.OriginInfo.Trackinfo
 	if len(allEvents) == 0 {
 		allEvents = tmResp.Data.TrackInfo.DestinationInfo.Trackinfo
@@ -217,7 +217,6 @@ func FetchRealTracking(trackingNumber, apiKey string) (*RealTrackingResult, erro
 	}
 
 	latestStatus := tmStatusToOrderStatus(tmResp.Data.TrackInfo.Status)
-
 	originEvent := allEvents[len(allEvents)-1]
 	latestEvent := allEvents[0]
 
@@ -247,4 +246,37 @@ func FetchRealTracking(trackingNumber, apiKey string) (*RealTrackingResult, erro
 		CurrentLat:  cLat,
 		CurrentLng:  cLng,
 	}, nil
+}
+
+func FetchRealTracking(trackingNumber, apiKey string) (*RealTrackingResult, error) {
+	candidateCourierCodes := []string{"", "delhivery", "shiprocket", "xpressbees", "dtdc", "bluedart"}
+	var lastErr error
+
+	for _, courierCode := range candidateCourierCodes {
+		_ = RegisterTracking(trackingNumber, courierCode, apiKey)
+		time.Sleep(2 * time.Second)
+
+		tmResp, err := fetchTrackingDetails(trackingNumber, apiKey)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		result, err := buildRealTrackingResult(tmResp, trackingNumber)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		if courierCode != "" && result.CourierName == "" {
+			result.CourierName = courierCode
+		}
+		return result, nil
+	}
+
+	if lastErr != nil {
+		return nil, lastErr
+	}
+
+	return nil, fmt.Errorf("tracking info not found")
 }
