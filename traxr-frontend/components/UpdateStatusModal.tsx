@@ -51,6 +51,9 @@ export function UpdateStatusModal({ order, onClose, onUpdated }: Props) {
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
+    if (!order) {
+      return
+    }
     try {
       setError("")
       const response = await api.post<Order>(`/tracking/${order.id}/update`, {
