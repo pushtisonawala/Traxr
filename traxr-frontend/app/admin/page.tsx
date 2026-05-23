@@ -14,18 +14,49 @@ const statusStyles: Record<string, string> = {
 }
 
 type SimulateResponse = {
-  success: boolean
-  data: {
-    new_status: string
-    location: string
-    note: string
-    order: Order
+  success?: boolean
+  data?: {
+    new_status?: string
+    location?: string
+    note?: string
+    order?: Partial<Order>
   }
-}
+} & Partial<Order>
 
 type Toast = {
   id: string
   message: string
+}
+
+function normalizeOrder(order: Partial<Order> | undefined): Order | null {
+  if (!order?.id || !order?.tracking_id) return null
+  return {
+    id: order.id,
+    tracking_id: order.tracking_id,
+    user_id: order.user_id || "",
+    customer_name: order.customer_name || "Unknown customer",
+    customer_phone: order.customer_phone || "",
+    origin: order.origin || "Unknown origin",
+    destination: order.destination || "Unknown destination",
+    origin_lat: Number(order.origin_lat || 0),
+    origin_lng: Number(order.origin_lng || 0),
+    dest_lat: Number(order.dest_lat || 0),
+    dest_lng: Number(order.dest_lng || 0),
+    current_lat: Number(order.current_lat || 0),
+    current_lng: Number(order.current_lng || 0),
+    status: order.status || "placed",
+    weight_kg: Number(order.weight_kg || 0),
+    est_delivery: order.est_delivery || new Date().toISOString(),
+    ai_prediction: order.ai_prediction || "",
+    created_at: order.created_at || new Date().toISOString(),
+    updated_at: order.updated_at || new Date().toISOString(),
+    is_real: order.is_real,
+    courier: order.courier,
+  }
+}
+
+function humanizeStatus(status?: string) {
+  return (status || "placed").replaceAll("_", " ")
 }
 
 export default function AdminPage() {
@@ -38,7 +69,8 @@ export default function AdminPage() {
 
   async function loadOrders() {
     const response = await api.get<Order[]>("/admin/orders")
-    setOrders(response.data)
+    const normalized = response.data.map((order) => normalizeOrder(order)).filter(Boolean) as Order[]
+    setOrders(normalized)
   }
 
   useEffect(() => {
@@ -63,12 +95,19 @@ export default function AdminPage() {
     try {
       setUpdatingId(orderId)
       const response = await api.post<SimulateResponse>(`/admin/simulate/${orderId}`)
-      const updatedOrder = response.data.data.order
+      const rawOrder = response.data?.data?.order || response.data
+      const updatedOrder = normalizeOrder(rawOrder)
+      if (!updatedOrder) {
+        await loadOrders()
+        return
+      }
+
       setOrders((current) => current.map((order) => order.id === orderId ? updatedOrder : order))
       setSuccessId(orderId)
-      const logLine = `[${new Date().toLocaleTimeString()}] ${updatedOrder.tracking_id} → ${response.data.data.new_status} ✓`
+      const nextStatus = response.data?.data?.new_status || updatedOrder.status
+      const logLine = `[${new Date().toLocaleTimeString()}] ${updatedOrder.tracking_id} → ${nextStatus} ✓`
       setLog((current) => [logLine, ...current])
-      showToast(`📦 ${updatedOrder.tracking_id} advanced to ${response.data.data.new_status}`)
+      showToast(`📦 ${updatedOrder.tracking_id} advanced to ${nextStatus}`)
       window.setTimeout(() => setSuccessId((current) => current === orderId ? null : current), 1000)
     } finally {
       setUpdatingId(null)
@@ -112,7 +151,7 @@ export default function AdminPage() {
                   <p className="mt-2 text-base text-slate-100">{order.origin} → {order.destination}</p>
                   <div className="mt-5">
                     <span className={`inline-flex rounded-full border px-3 py-1 text-xs ${statusStyles[order.status] || statusStyles.placed}`}>
-                      {order.status.replaceAll("_", " ")}
+                      {humanizeStatus(order.status)}
                     </span>
                   </div>
                   <button
