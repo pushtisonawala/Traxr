@@ -106,6 +106,7 @@ export default function TrackPage({ params }: { params: { orderId: string } }) {
 
   const safeWeight = Number(currentOrder.weight_kg || 0).toFixed(2)
   const safeEvents = trackingEvents || []
+  const safeStatus = (currentOrder.status || "placed").replaceAll("_", " ")
 
   return (
     <main className="min-h-screen px-4 py-6 md:px-8">
@@ -147,7 +148,7 @@ export default function TrackPage({ params }: { params: { orderId: string } }) {
                   className="rounded-full bg-sky-500/15 px-3 py-1 text-xs uppercase tracking-[0.18em] text-sky-200"
                   style={{ transform: statusPulse ? "scale(1.15)" : "scale(1)", transition: "transform 200ms ease" }}
                 >
-                  {currentOrder.status.replaceAll("_", " ")}
+                  {safeStatus}
                 </span>
               </div>
               <p className="mt-4 text-sm text-slate-300">{currentOrder.origin} → {currentOrder.destination}</p>
