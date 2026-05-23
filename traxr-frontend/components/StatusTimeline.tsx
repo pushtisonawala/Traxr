@@ -12,8 +12,8 @@ const colors: Record<string, string> = {
   picked_up: "bg-cyan-500"
 }
 
-function humanize(status: string) {
-  return status.replaceAll("_", " ").replace(/\b\w/g, (match) => match.toUpperCase())
+function humanize(status?: string) {
+  return (status || "placed").replaceAll("_", " ").replace(/\b\w/g, (match) => match.toUpperCase())
 }
 
 export function StatusTimeline({ events }: { events: TrackingEvent[] }) {

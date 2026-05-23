@@ -18,6 +18,10 @@ const statusStyles: Record<string, string> = {
   delayed: "bg-rose-500/20 text-rose-200"
 }
 
+function safeStatusText(status?: string) {
+  return (status || "placed").replaceAll("_", " ")
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const { user, setUser } = useTraxrStore()
@@ -144,8 +148,8 @@ export default function DashboardPage() {
                     <td className="py-4 font-mono text-sky-300">{order.tracking_id}</td>
                     <td className="py-4">{order.customer_name}</td>
                     <td className="py-4 text-slate-300">{order.origin} → {order.destination}</td>
-                    <td className="py-4"><span className={`rounded-full px-3 py-1 text-xs ${statusStyles[order.status] || statusStyles.placed}`}>{order.status.replaceAll("_", " ")}</span></td>
-                    <td className="py-4">{order.weight_kg} kg</td>
+                    <td className="py-4"><span className={`rounded-full px-3 py-1 text-xs ${statusStyles[order.status] || statusStyles.placed}`}>{safeStatusText(order.status)}</span></td>
+                    <td className="py-4">{Number(order.weight_kg || 0).toFixed(2)} kg</td>
                     <td className="py-4 text-slate-300">{new Date(order.est_delivery).toLocaleDateString()}</td>
                     <td className="py-4">
                       <div className="flex gap-2">
