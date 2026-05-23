@@ -13,7 +13,7 @@ const colors: Record<string, string> = {
 }
 
 function humanize(status?: string) {
-  return (status || "placed").replaceAll("_", " ").replace(/\b\w/g, (match) => match.toUpperCase())
+  return (status || "placed").split("_").join(" ").replace(/\b\w/g, (match) => match.toUpperCase())
 }
 
 export function StatusTimeline({ events }: { events: TrackingEvent[] }) {

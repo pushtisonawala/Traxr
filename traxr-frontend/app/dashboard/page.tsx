@@ -19,7 +19,7 @@ const statusStyles: Record<string, string> = {
 }
 
 function safeStatusText(status?: string) {
-  return (status || "placed").replaceAll("_", " ")
+  return (status || "placed").split("_").join(" ")
 }
 
 export default function DashboardPage() {

@@ -56,7 +56,7 @@ function normalizeOrder(order: Partial<Order> | undefined): Order | null {
 }
 
 function humanizeStatus(status?: string) {
-  return (status || "placed").replaceAll("_", " ")
+  return (status || "placed").split("_").join(" ")
 }
 
 export default function AdminPage() {

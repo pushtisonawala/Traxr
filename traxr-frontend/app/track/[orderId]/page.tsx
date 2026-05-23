@@ -106,7 +106,7 @@ export default function TrackPage({ params }: { params: { orderId: string } }) {
 
   const safeWeight = Number(currentOrder.weight_kg || 0).toFixed(2)
   const safeEvents = trackingEvents || []
-  const safeStatus = (currentOrder.status || "placed").replaceAll("_", " ")
+  const safeStatus = (currentOrder.status || "placed").split("_").join(" ")
 
   return (
     <main className="min-h-screen px-4 py-6 md:px-8">
