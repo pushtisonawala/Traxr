@@ -121,7 +121,18 @@ func (h *Handler) GetOrder(c *gin.Context) {
 	orderID := c.Param("id")
 	userID := c.GetString("user_id")
 
-	order, err := h.fetchOrderWithEvents(c.Request.Context(), "SELECT id, tracking_id, user_id, customer_name, customer_phone, origin, destination, origin_lat, origin_lng, dest_lat, dest_lng, current_lat, current_lng, status, weight_kg, est_delivery, COALESCE(ai_prediction, ''), created_at, updated_at FROM orders WHERE id = $1 AND user_id = $2", orderID, userID)
+	var exists bool
+	err := h.DB.QueryRow(c.Request.Context(), "SELECT EXISTS(SELECT 1 FROM orders WHERE id = $1 AND user_id = $2)", orderID, userID).Scan(&exists)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch order"})
+		return
+	}
+	if !exists {
+		c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
+		return
+	}
+
+	order, err := h.fetchOrderWithEvents(c.Request.Context(), orderID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
@@ -137,7 +148,17 @@ func (h *Handler) GetOrder(c *gin.Context) {
 func (h *Handler) GetPublicTracking(c *gin.Context) {
 	trackingID := c.Param("trackingId")
 
-	order, err := h.fetchOrderWithEvents(c.Request.Context(), "SELECT id, tracking_id, user_id, customer_name, customer_phone, origin, destination, origin_lat, origin_lng, dest_lat, dest_lng, current_lat, current_lng, status, weight_kg, est_delivery, COALESCE(ai_prediction, ''), created_at, updated_at FROM orders WHERE tracking_id = $1", trackingID)
+	orderID, err := h.getOrderIDByTrackingID(c.Request.Context(), trackingID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch order"})
+		return
+	}
+
+	order, err := h.fetchOrderWithEvents(c.Request.Context(), orderID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
@@ -234,34 +255,82 @@ func (h *Handler) AdminOrders(c *gin.Context) {
 	c.JSON(http.StatusOK, orders)
 }
 
-func (h *Handler) fetchOrderWithEvents(ctx context.Context, query string, args ...any) (*models.OrderWithEvents, error) {
-	var order models.OrderWithEvents
-	err := h.DB.QueryRow(ctx, query, args...).Scan(
-		&order.ID, &order.TrackingID, &order.UserID, &order.CustomerName, &order.CustomerPhone, &order.Origin, &order.Destination,
-		&order.OriginLat, &order.OriginLng, &order.DestLat, &order.DestLng, &order.CurrentLat, &order.CurrentLng,
-		&order.Status, &order.WeightKg, &order.EstDelivery, &order.AIPrediction, &order.CreatedAt, &order.UpdatedAt,
-	)
+func (h *Handler) getOrderIDByTrackingID(ctx context.Context, trackingID string) (string, error) {
+	var id string
+	err := h.DB.QueryRow(ctx, "SELECT id FROM orders WHERE tracking_id = $1", trackingID).Scan(&id)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
+	return id, nil
+}
+
+func (h *Handler) fetchOrderWithEvents(ctx context.Context, orderID string) (*models.OrderWithEvents, error) {
 	rows, err := h.DB.Query(ctx, `
-		SELECT id, order_id, status, location, lat, lng, COALESCE(note, ''), created_at
-		FROM tracking_events WHERE order_id = $1 ORDER BY created_at DESC`, order.ID)
+		SELECT 
+			o.id, o.tracking_id, o.user_id, o.customer_name, o.customer_phone,
+			o.origin, o.destination, o.origin_lat, o.origin_lng,
+			o.dest_lat, o.dest_lng, o.current_lat, o.current_lng,
+			o.status, o.weight_kg, o.est_delivery,
+			COALESCE(o.ai_prediction, ''), o.created_at, o.updated_at,
+			te.id, te.order_id, te.status, te.location,
+			te.lat, te.lng, COALESCE(te.note, ''), te.created_at
+		FROM orders o
+		LEFT JOIN tracking_events te ON te.order_id = o.id
+		WHERE o.id = $1
+		ORDER BY te.created_at DESC
+	`, orderID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	order.TrackingEvents = make([]models.TrackingEvent, 0)
+	var order *models.OrderWithEvents
 	for rows.Next() {
-		var event models.TrackingEvent
-		if err := rows.Scan(&event.ID, &event.OrderID, &event.Status, &event.Location, &event.Lat, &event.Lng, &event.Note, &event.CreatedAt); err == nil {
-			order.TrackingEvents = append(order.TrackingEvents, event)
+		var eventID, eventOrderID, eventStatus, eventLocation, eventNote *string
+		var eventLat, eventLng *float64
+		var eventCreatedAt *time.Time
+
+		if order == nil {
+			order = &models.OrderWithEvents{}
+			order.TrackingEvents = make([]models.TrackingEvent, 0)
+		}
+
+		err := rows.Scan(
+			&order.ID, &order.TrackingID, &order.UserID,
+			&order.CustomerName, &order.CustomerPhone,
+			&order.Origin, &order.Destination,
+			&order.OriginLat, &order.OriginLng,
+			&order.DestLat, &order.DestLng,
+			&order.CurrentLat, &order.CurrentLng,
+			&order.Status, &order.WeightKg, &order.EstDelivery,
+			&order.AIPrediction, &order.CreatedAt, &order.UpdatedAt,
+			&eventID, &eventOrderID, &eventStatus, &eventLocation,
+			&eventLat, &eventLng, &eventNote, &eventCreatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		if eventID != nil {
+			order.TrackingEvents = append(order.TrackingEvents, models.TrackingEvent{
+				ID:        *eventID,
+				OrderID:   derefString(eventOrderID),
+				Status:    derefString(eventStatus),
+				Location:  derefString(eventLocation),
+				Lat:       derefFloat64(eventLat),
+				Lng:       derefFloat64(eventLng),
+				Note:      derefString(eventNote),
+				CreatedAt: derefTime(eventCreatedAt),
+			})
 		}
 	}
 
-	return &order, nil
+	if order == nil {
+		return nil, pgx.ErrNoRows
+	}
+
+	return order, nil
 }
 
 func (h *Handler) insertEvent(ctx context.Context, orderID, status, location string, lat, lng float64, note string) error {
@@ -269,4 +338,25 @@ func (h *Handler) insertEvent(ctx context.Context, orderID, status, location str
 		INSERT INTO tracking_events (order_id, status, location, lat, lng, note)
 		VALUES ($1,$2,$3,$4,$5,$6)`, orderID, status, location, lat, lng, note)
 	return err
+}
+
+func derefString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func derefFloat64(value *float64) float64 {
+	if value == nil {
+		return 0
+	}
+	return *value
+}
+
+func derefTime(value *time.Time) time.Time {
+	if value == nil {
+		return time.Time{}
+	}
+	return *value
 }

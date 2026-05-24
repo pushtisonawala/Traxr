@@ -40,7 +40,7 @@ func (h *Handler) UpdateTracking(c *gin.Context) {
 
 func (h *Handler) AdminSimulate(c *gin.Context) {
 	orderID := c.Param("orderId")
-	order, err := h.fetchOrderWithEvents(c.Request.Context(), "SELECT id, tracking_id, user_id, customer_name, customer_phone, origin, destination, origin_lat, origin_lng, dest_lat, dest_lng, current_lat, current_lng, status, weight_kg, est_delivery, COALESCE(ai_prediction, ''), created_at, updated_at FROM orders WHERE id = $1", orderID)
+	order, err := h.fetchOrderWithEvents(c.Request.Context(), orderID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
 		return
@@ -109,7 +109,7 @@ func (h *Handler) updateOrderAndEvent(ctx context.Context, orderID, status, loca
 		return nil, err
 	}
 
-	order, err := h.fetchOrderWithEvents(ctx, "SELECT id, tracking_id, user_id, customer_name, customer_phone, origin, destination, origin_lat, origin_lng, dest_lat, dest_lng, current_lat, current_lng, status, weight_kg, est_delivery, COALESCE(ai_prediction, ''), created_at, updated_at FROM orders WHERE id = $1", orderID)
+	order, err := h.fetchOrderWithEvents(ctx, orderID)
 	if err != nil {
 		return nil, err
 	}
