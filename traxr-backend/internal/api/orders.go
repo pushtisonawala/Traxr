@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -148,6 +149,14 @@ func (h *Handler) GetOrder(c *gin.Context) {
 func (h *Handler) GetPublicTracking(c *gin.Context) {
 	trackingID := c.Param("trackingId")
 
+	cacheKey := "track:" + trackingID
+	cached, err := h.Redis.Get(c.Request.Context(), cacheKey).Result()
+	if err == nil {
+		c.Header("X-Cache", "HIT")
+		c.Data(http.StatusOK, "application/json", []byte(cached))
+		return
+	}
+
 	orderID, err := h.getOrderIDByTrackingID(c.Request.Context(), trackingID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -168,6 +177,9 @@ func (h *Handler) GetPublicTracking(c *gin.Context) {
 		return
 	}
 
+	response, _ := json.Marshal(order)
+	_ = h.Redis.Set(c.Request.Context(), cacheKey, response, 30*time.Second).Err()
+	c.Header("X-Cache", "MISS")
 	c.JSON(http.StatusOK, order)
 }
 

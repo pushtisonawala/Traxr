@@ -122,6 +122,7 @@ func (h *Handler) updateOrderAndEvent(ctx context.Context, orderID, status, loca
 		}
 	}
 
+	_ = h.Redis.Del(ctx, "track:"+order.TrackingID).Err()
 	h.publishOrder(ctx, orderID, order)
 	return order, nil
 }
