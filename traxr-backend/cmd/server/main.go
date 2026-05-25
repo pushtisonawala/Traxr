@@ -21,6 +21,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("redis: %v", err)
 	}
+	redisOpts.PoolSize = 50
+	redisOpts.MinIdleConns = 10
+	redisOpts.MaxRetries = 3
+	redisOpts.DialTimeout = 5 * time.Second
+	redisOpts.ReadTimeout = 3 * time.Second
+	redisOpts.WriteTimeout = 3 * time.Second
+	redisOpts.PoolTimeout = 4 * time.Second
 	redisClient := redis.NewClient(redisOpts)
 
 	hub := ws.NewHub()

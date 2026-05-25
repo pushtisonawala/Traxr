@@ -17,7 +17,10 @@ func NewPool(databaseURL string) *pgxpool.Pool {
 		log.Panicf("db: parse config: %v", err)
 	}
 
-	cfg.MaxConns = 10
+	cfg.MaxConns = 25
+	cfg.MinConns = 5
+	cfg.MaxConnLifetime = time.Hour
+	cfg.MaxConnIdleTime = 30 * time.Minute
 
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {

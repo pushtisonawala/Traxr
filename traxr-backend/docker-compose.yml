@@ -1,4 +1,14 @@
 services:
+  backend:
+    build: .
+    depends_on:
+      - postgres
+      - redis
+    env_file:
+      - .env
+    ports:
+      - "8080:8080"
+
   postgres:
     image: postgres:16-alpine
     environment:

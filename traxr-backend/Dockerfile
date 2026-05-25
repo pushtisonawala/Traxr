@@ -2,11 +2,14 @@ FROM golang:1.22-alpine AS builder
 
 WORKDIR /app
 
-COPY go.mod ./
-RUN go mod download
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o /traxr-server ./cmd/server
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build -p=1 -o /traxr-server ./cmd/server
 
 FROM alpine:3.20
 
